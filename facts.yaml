@@ -1,0 +1,324 @@
+# The NYC housing agent facts sheet.
+#
+# Every number or rule-like claim the agent makes comes from this file or from
+# the synced lottery database, never from the model's memory. The LLM writes
+# prose; code supplies facts. The tools read these constants, the tests assert
+# them, and each legal fact records where it came from so a reviewer can check
+# it against the approved source (SPEC.md section 4).
+#
+# Each legal fact has a `source` block:
+#   id:       a source ID from SPEC.md GROUND-1
+#   section:  the section or heading within that source
+#   url:      the page the agent links for RESP-1
+#   verified: the date someone last read the value off the source page
+#
+# A value of null means the number is published outside the approved sources
+# and the agent must not state it. See the TODO notes.
+
+# ---------------------------------------------------------------------------
+# Rent-stabilized apartments: Rent Guidelines Board apartment orders
+# ---------------------------------------------------------------------------
+# These apply ONLY to rent-stabilized apartments. The tool takes two required
+# inputs and returns `missing_input` if either is absent (RESP-3):
+#   - stabilized: true/false (false -> use good_cause below, not these orders)
+#   - renewal_lease_start_date: the date the NEW lease starts, not the date
+#     the renewal is offered or signed
+# Lookup: find the order whose window contains that start date. If no stored
+# order covers it (a future window not yet voted on, or an old lease), the
+# tool returns `no_order_for_date` and the agent says so rather than guessing.
+# Percentages apply to the legal rent in effect on the day before the window
+# starts. Leases up to one year count as one-year leases; over one year and up
+# to two years count as two-year leases.
+#
+# The order's percentage is the guideline increase, not always the whole
+# answer: orders apply "together with such further adjustments as may be
+# authorized by law." The agent states the guideline for the lease start date
+# and says other lawful adjustments may apply; it does not say an increase
+# above the guideline is definitely illegal.
+rgb_apartment_orders:
+  - order: 58
+    lease_start_from: 2026-10-01
+    lease_start_to: 2027-09-30
+    one_year_lease_increase_percent: 0
+    two_year_lease_increase_percent: 0
+    source:
+      id: rgb-apartment-orders
+      section: "2026-27 Apartment/Loft Order #58, Adjustment for leases (apartments)"
+      url: https://rentguidelinesboard.cityofnewyork.us/2026-27-apartment-loft-order-58/
+      verified: 2026-11-09
+  - order: 57
+    lease_start_from: 2025-10-01
+    lease_start_to: 2026-09-30
+    one_year_lease_increase_percent: 3
+    two_year_lease_increase_percent: 4.5
+    source:
+      id: rgb-apartment-orders
+      section: "2025-26 Apartment/Loft Order #57, Adjustment for leases (apartments)"
+      url: https://rentguidelinesboard.cityofnewyork.us/2025-26-apartment-loft-order-57/
+      verified: 2026-11-09
+
+# Fractional lease terms, from the same orders.
+rgb_fractional_terms:
+  one_year_max_months: 12
+  two_year_max_months: 24
+  source:
+    id: rgb-apartment-orders
+    section: "Order #58, Fractional terms"
+    url: https://rentguidelinesboard.cityofnewyork.us/2026-27-apartment-loft-order-58/
+    verified: 2026-11-09
+
+# ---------------------------------------------------------------------------
+# Good Cause Eviction Law (RPP Article 6-A), for unregulated apartments
+# ---------------------------------------------------------------------------
+good_cause:
+  applies_in_nyc: true
+  source:
+    id: nys-rpp-a6a
+    section: "§ 212 Applicability in the city of New York"
+    url: https://www.nysenate.gov/legislation/laws/RPP/212
+    verified: 2026-11-09
+
+  # A rent increase above the local rent standard in a calendar year is
+  # presumed unreasonable (rebuttable). An increase at or below it is never
+  # unreasonable. Local rent standard = min(inflation index, 10%), where the
+  # inflation index = 5% + the annual CPI change for the
+  # New York-Newark-Jersey City region for the prior calendar year.
+  local_rent_standard:
+    inflation_index_base_percent: 5
+    cap_percent: 10
+    cpi_region: "New York-Newark-Jersey City, NY-NJ-PA"
+    source:
+      id: nys-rpp-a6a
+      section: "§ 211(7) inflation index, § 211(8) local rent standard, § 216(1)(a) unreasonable increase"
+      url: https://www.nysenate.gov/legislation/laws/RPP/211
+      verified: 2026-11-09
+
+    # Yearly values published by DHCR on or before August 1. Newest first.
+    # local_rent_standard_percent = min(5 + cpi_change_percent, 10), computed
+    # here so tests can check the arithmetic.
+    # TODO: the notice says these figures "may be used" for renewal leases but
+    # gives no start/end dates. Confirm which leases each year's figure covers
+    # before the tool picks one by date; until then the tool returns the
+    # newest figure and the agent names its publication date.
+    published:
+      - published_on: 2026-07-16
+        cpi_period: "2024 to 2025"
+        cpi_change_percent: 3.38
+        local_rent_standard_percent: 8.38
+        source:
+          id: dhcr-good-cause
+          section: "Good Cause Eviction Law Notice (August 2026), page 7, Consumer Price Index"
+          url: https://hcr.ny.gov/good-cause-eviction-law-notice-august-2026
+          verified: 2026-11-09
+
+  # Exemptions (§ 214). The agent asks about these before saying whether a
+  # tenant is covered (RESP-3). Not exhaustive; the full list is in § 214.
+  exemptions:
+    small_landlord_max_units: 10        # landlord owns no more than 10 units in NY State
+    owner_occupied_max_units: 10        # owner lives in a building of no more than 10 units
+    rent_regulated_units: true          # e.g. rent-stabilized: covered by RGB rules instead
+    income_restricted_affordable_units: true
+    condo_or_coop_units: true
+    new_construction_years: 30          # certificate of occupancy on or after the date below
+    new_construction_co_on_or_after: 2009-01-01
+    # Units renting above 245% of HUD fair market rent are exempt. A unit is
+    # exempt only if its monthly rent is ABOVE the threshold for its size.
+    luxury_threshold_percent_of_fmr: 245
+    # Same values in all five NYC counties (Bronx, Kings, New York, Queens,
+    # Richmond). Monthly rent in USD.
+    luxury_threshold_usd_by_unit_size:
+      published_on: 2026-07-16
+      hud_fmr_year: "federal fiscal year 2025"
+      studio: 6196
+      one_bedroom: 6505
+      two_bedroom: 7130
+      three_bedroom: 8928
+      four_bedroom: 9700
+      source:
+        id: dhcr-good-cause
+        section: "Good Cause Eviction Law Notice (August 2026), pages 3-5, Fair Market Rent and 245% of FMR"
+        url: https://hcr.ny.gov/good-cause-eviction-law-notice-august-2026
+        verified: 2026-11-09
+    source:
+      id: nys-rpp-a6a
+      section: "§ 214 Covered housing accommodations; § 211(3) small landlord"
+      url: https://www.nysenate.gov/legislation/laws/RPP/214
+      verified: 2026-11-09
+
+# ---------------------------------------------------------------------------
+# Notice of rent increase or non-renewal (RPP § 226-c)
+# ---------------------------------------------------------------------------
+# Required when the landlord will not renew, or offers a renewal with an
+# increase of this percent or more. If notice is late, the tenancy continues
+# on the existing terms until the notice period has run.
+notice_of_increase_or_nonrenewal:
+  increase_threshold_percent: 5
+  notice_days:
+    - tenancy: "occupied under 1 year and lease term under 1 year"
+      days: 30
+    - tenancy: "occupied 1 to 2 years, or lease term of 1 to 2 years"
+      days: 60
+    - tenancy: "occupied over 2 years, or lease term of at least 2 years"
+      days: 90
+  source:
+    id: nys-rpp-a7
+    section: "§ 226-c Notice of rent increase or non-renewal of residential tenancy"
+    url: https://www.nysenate.gov/legislation/laws/RPP/226-C
+    verified: 2026-11-09
+
+# ---------------------------------------------------------------------------
+# Fees (RPP § 238-a)
+# ---------------------------------------------------------------------------
+fees:
+  # Only background and credit check fees may be charged to apply; the fee is
+  # waived if the applicant provides a check from the past 30 days.
+  application_fee_max_usd: 20
+  application_fee_waived_if_check_within_days: 30
+  # Late fees: only after the rent is this many days late, and capped at the
+  # lesser of the two amounts.
+  late_fee_grace_days: 5
+  late_fee_max_usd: 50
+  late_fee_max_percent_of_rent: 5
+  source:
+    id: nys-rpp-a7
+    section: "§ 238-a Limitation on fees"
+    url: https://www.nysenate.gov/legislation/laws/RPP/238-A
+    verified: 2026-11-09
+
+# ---------------------------------------------------------------------------
+# Security deposits
+# ---------------------------------------------------------------------------
+# The cap applies to rent-stabilized and unregulated apartments alike. The
+# FAQ notes it is not a substitute for the statutes themselves; the statutory
+# text for unregulated units is HSTPA 2019 Part M § 25 (PDF pages 55-56),
+# amending General Obligations Law § 7-108(1-a)(a).
+security_deposit:
+  max_months_rent: 1
+  # When a renewal raises the rent, the landlord may collect more to bring
+  # the deposit up to the new monthly rent.
+  may_top_up_to_new_rent_on_increase: true
+  # Return deadline after the tenant moves out, with an itemized statement
+  # of anything kept. Unregulated: from HSTPA 2019. Rent-stabilized: from
+  # changes to General Obligations Law § 7-107 effective 2025-11-15.
+  return_deadline_days: 14
+  return_deadline_rent_stabilized_effective: 2025-11-15
+  # Interest-bearing account in a NYS bank; the landlord may keep 1% of the
+  # deposit per year for administrative costs.
+  landlord_admin_fee_percent_per_year: 1
+  # On sale of the building, deposits move to the new owner within this many
+  # days, or go back to the tenants.
+  transfer_on_sale_days: 5
+  source:
+    id: rgb-faq-security-deposits
+    section: "Does an owner have a right to collect a security deposit?; What are the time limits for returning security deposits?"
+    url: https://rentguidelinesboard.cityofnewyork.us/resources/faqs/security-deposits/
+    verified: 2026-11-09
+  # Where to complain (REF-4). The user must first try to resolve it with the
+  # landlord; disputes over deductions for rent or damage go to small claims.
+  complaint_form:
+    id: ag-rent-security-complaint
+    url: https://formsnym.ag.ny.gov/OAGOnlineSubmissionForm/faces/OAGRSHome
+    covers: [deposit_not_returned, deposit_over_one_month, no_trust_account, no_interest, application_fee_over_20]
+    must_try_landlord_first: true
+    verified: 2026-11-09
+  statute_source:
+    id: hstpa-2019
+    section: "Part M, § 25, amending General Obligations Law § 7-108(1-a)(a) (PDF pages 55-56)"
+    url: https://rentguidelinesboard.cityofnewyork.us/wp-content/uploads/2019/11/Housing-Stability-and-Tenant-Protection-Act-of-2019.pdf
+    verified: 2026-11-09
+
+# ---------------------------------------------------------------------------
+# Lottery asset limits and property ownership (HPD/HDC marketing policy)
+# ---------------------------------------------------------------------------
+# A rental unit's asset limit equals the 4-person maximum income at the AMI
+# level the unit is designated for, whatever the household's size. The
+# Housing Connect income tables also carry each unit's asset limit.
+lottery_assets:
+  effective: 2026-05-01
+  rental_asset_limit_usd_by_ami_percent:
+    30: 50880
+    40: 67840
+    50: 84800
+    60: 101760
+    70: 118720
+    80: 135680
+    90: 152640
+    100: 169600
+    110: 186560
+    125: 212000
+    130: 220480
+    165: 279840
+    175: 296800
+  counts: [savings accounts, checking accounts, trusts, stocks and bonds, cash savings, other investment holdings,
+           full market value of any interest in real property, equity in other capital investments]
+  excluded: [designated retirement funds, college savings accounts]
+  # No household member may own residential property, including co-op shares,
+  # in NYC or within this many miles of the city limits.
+  rental_no_residential_property_within_miles: 100
+  source:
+    id: hdc-asset-limits
+    section: "Asset Limits; Asset Limits for Rental Units; Property Ownership, Applicants to Rental Units"
+    url: https://www.nychdc.com/sites/default/files/2026-09/Asset%20and%20Property%20Limits_2026.pdf
+    verified: 2026-11-10
+
+# ---------------------------------------------------------------------------
+# Lottery data (SPEC.md GROUND-3, GROUND-6, GROUND-7, OPEN-1)
+# ---------------------------------------------------------------------------
+lottery_sync:
+  api_base_url: https://a806-housingconnectapi.nyc.gov/HPDPublicAPI/api/
+  sync_interval_hours: 6
+  sync_on_startup: true
+  # Switch to the Open Data fallback after the API has failed this long.
+  api_failure_fallback_after_hours: 24
+  fallback_datasets:
+    by_lottery: vy5i-a666
+    by_building: nibs-na6y
+  fallback_open_status: Active        # plus end date today or later
+  property_url_template: https://housingconnect.nyc.gov/PublicWeb/details/{lottery_id}
+  open_lotteries_url: https://housingconnect.nyc.gov/PublicWeb/search-lotteries
+
+lottery_open_rules:
+  timezone: America/New_York
+  end_date_inclusive: true            # a lottery ending today is still open
+  rentals_only: true                  # sales belong to a future persona
+  exclude_mini_lotteries: true
+  label_mitchell_lama_as_waiting_list: true
+  sort: end_date_ascending            # RESP-7
+
+# ---------------------------------------------------------------------------
+# Public deployment limits (SPEC.md section 8)
+# ---------------------------------------------------------------------------
+limits:
+  message_max_chars: 2000             # LIMIT-1
+  messages_per_session: 30            # LIMIT-2
+  messages_per_ip_per_hour: 60        # LIMIT-3
+  tool_calls_per_turn: 8              # LIMIT-4
+  # LIMIT-5. Claude Opus 5.5 always thinks, and thinking counts toward
+  # max_tokens, so this caps thinking plus reply per model call. Reply length
+  # itself is set in the system prompt.
+  max_tokens_per_call: 8000
+  model_effort: medium
+  daily_model_spend_usd: 5            # LIMIT-6, set by the project owner
+  daily_spend_reset_timezone: America/New_York
+  spend_alert_percent: 80             # OPS-2
+
+privacy:
+  log_retention_days: 30              # PRIV-2
+  redact_before_storage:
+    - email
+    - phone
+    - ssn
+
+kill_switch:
+  env_var: NYCHOUSING_KILL_SWITCH
+  levels: ["off", "laws-only", "maintenance"]   # SEC-5; unset or unknown reads as "off"
+
+link_allowlist:                       # SEC-1
+  - housingconnect.nyc.gov
+  - rentguidelinesboard.cityofnewyork.us
+  - www.nyc.gov
+  - www.nysenate.gov
+  - data.cityofnewyork.us
+  - hcr.ny.gov
+  - formsnym.ag.ny.gov
+  - www.nychdc.com

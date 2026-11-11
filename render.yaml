@@ -1,0 +1,33 @@
+# Render Blueprint (SPEC.md HOST-2): one always-on web service that serves the
+# page and API and runs the lottery sync, with SQLite and traces on a
+# persistent disk. Secrets are set in the Render dashboard, never here.
+services:
+  - type: web
+    name: nyc-housing-agent
+    runtime: python
+    plan: starter            # paid instance: always on, and required for a persistent disk
+    buildCommand: pip install uv && uv sync --frozen --no-dev
+    startCommand: uv run --no-dev uvicorn server.app:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    autoDeploy: true         # redeploy on every push to the deployed branch
+    disk:
+      name: data
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.14"
+      - key: NYCHA_DB
+        value: /var/data/agent.db
+      - key: NYCHA_TRACES_DIR
+        value: /var/data/traces
+      - key: SESSION_SECRET
+        generateValue: true  # Render generates a random secret once
+      - key: ANTHROPIC_API_KEY
+        sync: false          # entered in the dashboard; use a separate key from local development
+      - key: TURNSTILE_SITE_KEY
+        sync: false
+      - key: TURNSTILE_SECRET_KEY
+        sync: false
+      - key: NYCHOUSING_KILL_SWITCH
+        value: "off"         # SEC-5: off, laws-only, or maintenance

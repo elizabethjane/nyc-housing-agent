@@ -1,0 +1,131 @@
+# The approved-source registry (SPEC.md GROUND-1).
+#
+# The agent may cite only the sources listed here. Each entry says how the
+# source reaches the agent:
+#
+#   snapshot  saved as Markdown sections in data/sources/<id>/ by
+#             `uv run python -m sources.snapshot`, and searched by the
+#             search_sources and get_source_section tools
+#   api       read by the lottery sync job, never shown to users
+#   dataset   fallback lottery data, read by the sync job (GROUND-7)
+#   link      linked in replies but never fetched (REF-4)
+#
+# `fetch` tells sources/snapshot.py how to download a snapshot source. The
+# sites differ: the Rent Guidelines Board serves page content through its
+# WordPress API, nyc.gov through the city content API, NY Senate laws through
+# the Open Legislation API (needs NYSENATE_API_KEY), and DHCR blocks
+# browser-like user agents but allows plain ones.
+
+sources:
+  # --- Lotteries ---------------------------------------------------------
+  - id: housing-connect
+    title: NYC Housing Connect
+    url: https://housingconnect.nyc.gov/PublicWeb/
+    kind: link
+    note: Users get lottery links on this site (GROUND-4); data comes from housing-connect-api.
+
+  - id: housing-connect-api
+    title: Housing Connect public data API
+    url: https://a806-housingconnectapi.nyc.gov/HPDPublicAPI/api/
+    kind: api
+    user_facing: false
+
+  - id: hc-lotteries-by-lottery
+    title: "NYC Open Data: Advertised Lotteries on Housing Connect by Lottery"
+    url: https://data.cityofnewyork.us/Housing-Development/Advertised-Lotteries-on-Housing-Connect-by-Lottery/vy5i-a666/about_data
+    kind: dataset
+    dataset_id: vy5i-a666
+
+  - id: hc-lotteries-by-building
+    title: "NYC Open Data: Advertised Lotteries on Housing Connect by Building"
+    url: https://data.cityofnewyork.us/Housing-Development/Advertised-Lotteries-on-Housing-Connect-By-Buildin/nibs-na6y/about_data
+    kind: dataset
+    dataset_id: nibs-na6y
+
+  - id: hdc-asset-limits
+    title: "HPD/HDC Marketing: Asset Limits and Property Ownership Policies"
+    url: https://www.nychdc.com/sites/default/files/2026-09/Asset%20and%20Property%20Limits_2026.pdf
+    kind: snapshot
+    # Effective May 1 each year; update the URL when HDC posts the next one.
+    fetch:
+      method: pdf_pages
+      page_titles: ["Asset limits for lottery applicants", "Property ownership rules for lottery applicants"]
+
+  # --- Rent Guidelines Board ---------------------------------------------
+  - id: rgb-rent-laws
+    title: "NYC Rent Guidelines Board: rent regulation laws"
+    url: https://rentguidelinesboard.cityofnewyork.us/resources/rent-regulation-laws/
+    kind: snapshot
+    fetch: {method: wordpress, slugs: [rent-regulation-laws]}
+
+  - id: rgb-rent-laws-2019
+    title: "NYC Rent Guidelines Board: rent laws of 2019"
+    url: https://rentguidelinesboard.cityofnewyork.us/resources/rent-regulation-laws/rent-laws-of-2019/
+    kind: snapshot
+    fetch: {method: wordpress, slugs: [rent-laws-of-2019]}
+
+  - id: rgb-apartment-orders
+    title: "NYC Rent Guidelines Board: apartment and loft orders"
+    url: https://rentguidelinesboard.cityofnewyork.us/rent-guidelines/apartment-loft-orders-explanatory-statements/
+    kind: snapshot
+    # Add the new order's slug each summer after the Board votes (GROUND-2).
+    fetch:
+      method: wordpress
+      slugs:
+        - apartment-loft-orders-explanatory-statements
+        - 2026-27-apartment-loft-order-58
+        - 2025-26-apartment-loft-order-57
+
+  - id: rgb-faq-security-deposits
+    title: "NYC Rent Guidelines Board: Security Deposits FAQs"
+    url: https://rentguidelinesboard.cityofnewyork.us/resources/faqs/security-deposits/
+    kind: snapshot
+    fetch: {method: wordpress, slugs: [security-deposits]}
+
+  - id: hstpa-2019
+    title: Housing Stability and Tenant Protection Act of 2019 (full text)
+    url: https://rentguidelinesboard.cityofnewyork.us/wp-content/uploads/2019/11/Housing-Stability-and-Tenant-Protection-Act-of-2019.pdf
+    kind: snapshot
+    fetch: {method: pdf, split: hstpa_parts}
+
+  # --- NYC Mayor's Office to Protect Tenants -----------------------------
+  - id: nyc-tenant-protection
+    title: NYC tenant protection laws
+    url: https://www.nyc.gov/content/tenantprotection/pages/tenant-protection-laws
+    kind: snapshot
+    # The main page is a short overview that points to the two pages below
+    # for the details, so they are snapshotted as part of this source.
+    fetch:
+      method: nyc_content_api
+      site: tenantprotection
+      pages:
+        - tenant-protection-laws
+        - new-protections-for-all-tenants
+        - new-protections-for-rent-regulated-tenants
+
+  # --- New York State ----------------------------------------------------
+  - id: nys-rpp-a7
+    title: New York State Real Property Law, Article 7 (Landlord and Tenant)
+    url: https://www.nysenate.gov/legislation/laws/RPP/A7
+    kind: snapshot
+    fetch: {method: nysenate_api, law: RPP, article: A7}
+
+  - id: nys-rpp-a6a
+    title: New York State Real Property Law, Article 6-A (Good Cause Eviction Law)
+    url: https://www.nysenate.gov/legislation/laws/RPP/A6-A
+    kind: snapshot
+    fetch: {method: nysenate_api, law: RPP, article: A6-A}
+
+  - id: dhcr-good-cause
+    title: "NYS Homes and Community Renewal (DHCR): Good Cause Eviction"
+    url: https://hcr.ny.gov/good-cause-eviction
+    kind: snapshot
+    # Update the notice URL when DHCR publishes the next one (by August 1).
+    fetch:
+      method: dhcr
+      notice_pdf: https://hcr.ny.gov/good-cause-eviction-law-notice-august-2026
+
+  - id: ag-rent-security-complaint
+    title: "NYS Attorney General: Rent Security Complaint Form"
+    url: https://formsnym.ag.ny.gov/OAGOnlineSubmissionForm/faces/OAGRSHome
+    kind: link
