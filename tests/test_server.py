@@ -94,3 +94,41 @@ def test_security_headers(client):
     r = client.get("/")
     assert "frame-ancestors 'none'" in r.headers["content-security-policy"]
     assert r.headers["x-content-type-options"] == "nosniff"
+
+
+TOKEN = "t" * 40
+
+
+@pytest.fixture
+def admin(client, monkeypatch, world):
+    from agent import trace
+    from server import app as app_module
+
+    monkeypatch.setattr(app_module, "ADMIN_TOKEN", TOKEN)
+    d = trace.traces_dir()
+    d.mkdir(parents=True, exist_ok=True)
+    (d / "2026-11-10.jsonl").write_text('{"user": "hi"}\n')
+    return client
+
+
+def test_traces_need_the_token(admin):
+    assert admin.get("/admin/traces/index").status_code == 404
+    assert admin.get("/admin/traces/index", headers={"Authorization": "Bearer wrong"}).status_code == 404
+    assert admin.get(f"/admin/traces/index?token={TOKEN}").status_code == 404  # never via URL
+
+
+def test_traces_download_with_the_token(admin):
+    auth = {"Authorization": f"Bearer {TOKEN}"}
+    index = admin.get("/admin/traces/index", headers=auth).json()["files"]
+    assert index == [{"date": "2026-11-10", "bytes": 15}]
+    r = admin.get("/admin/traces/2026-11-10", headers=auth)
+    assert r.status_code == 200 and r.text == '{"user": "hi"}\n' and r.headers["cache-control"] == "no-store"
+    assert admin.get("/admin/traces/..%2F..%2Fagent", headers=auth).status_code == 404
+    assert admin.get("/admin/traces/2026-11-09", headers=auth).status_code == 404
+
+
+def test_admin_is_off_without_a_long_token(client, monkeypatch):
+    from server import app as app_module
+
+    monkeypatch.setattr(app_module, "ADMIN_TOKEN", "short")
+    assert client.get("/admin/traces/index", headers={"Authorization": "Bearer short"}).status_code == 404

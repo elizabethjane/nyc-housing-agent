@@ -35,6 +35,18 @@ On startup the server syncs today's lotteries from Housing Connect, then again e
 `NYCHA_FIXTURE=scenarios/fixtures/lotteries-2026-11-10.json NYCHA_TODAY=2026-11-10` to use the frozen
 eval data instead. Every chat message calls Claude and counts toward the $5/day cap.
 
+## Review live conversations
+
+The live site logs every turn (redacted) to its disk for 30 days. To download them:
+
+```sh
+uv run python scripts/pull_traces.py            # saves runs/live-traces/<date>.jsonl
+```
+
+This needs `NYCHA_ADMIN_TOKEN` in `.env`: the `ADMIN_TOKEN` value from the Render service's
+Environment settings. The files hold what visitors typed, so keep them on this machine and delete
+them after review.
+
 ## Layout
 
 | Path | What it is |

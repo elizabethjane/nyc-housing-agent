@@ -23,6 +23,8 @@ services:
         value: /var/data/traces
       - key: SESSION_SECRET
         generateValue: true  # Render generates a random secret once
+      - key: ADMIN_TOKEN
+        generateValue: true  # unlocks /admin/traces; copy it into your local .env as NYCHA_ADMIN_TOKEN
       - key: ANTHROPIC_API_KEY
         sync: false          # entered in the dashboard; use a separate key from local development
       - key: TURNSTILE_SITE_KEY

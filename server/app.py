@@ -11,6 +11,8 @@ Environment:
   - TURNSTILE_SITE_KEY / TURNSTILE_SECRET_KEY: Cloudflare Turnstile bot check
     (LIMIT-8). With both set, a session must pass the check before its first
     model call. Without them the check is off (local runs).
+  - ADMIN_TOKEN: enables /admin/traces for downloading conversation logs
+    (sent as "Authorization: Bearer <token>"). Unset means the routes return 404.
   - RENDER (set by Render): marks production. There SESSION_SECRET is required,
     and the client IP is the address Render's proxy appended to
     X-Forwarded-For, not one the visitor could have sent.
@@ -58,6 +60,7 @@ TURNSTILE_SITE_KEY = os.environ.get("TURNSTILE_SITE_KEY", "")
 TURNSTILE_SECRET_KEY = os.environ.get("TURNSTILE_SECRET_KEY", "")
 TURNSTILE_ON = bool(TURNSTILE_SITE_KEY and TURNSTILE_SECRET_KEY)
 TURNSTILE_VERIFY_URL = "https://challenges.cloudflare.com/turnstile/v0/siteverify"
+ADMIN_TOKEN = os.environ.get("ADMIN_TOKEN", "")
 _verified_sessions: set[str] = set()
 
 _sessions: dict[str, tuple[Session, float, threading.Lock]] = {}
@@ -272,6 +275,50 @@ async def security_headers(request: Request, call_next):
 @app.get("/health")
 def health() -> dict:
     return {"ok": True}
+
+
+# --- Trace download for review (OPS-1) ----------------------------------------------
+# Locked by ADMIN_TOKEN in the Authorization header, never a URL parameter, so
+# the token stays out of access logs and browser history. A missing or wrong
+# token, or no token configured, gets the same 404 as an unknown page.
+
+
+def _admin_ok(request: Request) -> bool:
+    if len(ADMIN_TOKEN) < 32:  # refuse short tokens outright
+        return False
+    supplied = request.headers.get("authorization", "")
+    return hmac.compare_digest(supplied.encode(), f"Bearer {ADMIN_TOKEN}".encode())
+
+
+def _not_found() -> JSONResponse:
+    return JSONResponse({"detail": "Not Found"}, status_code=404)
+
+
+@app.get("/admin/traces/index")
+def traces_index(request: Request) -> JSONResponse:
+    """The trace files on disk: one per New York day, with sizes."""
+    if not _admin_ok(request):
+        return _not_found()
+    files = sorted(trace.traces_dir().glob("*.jsonl")) if trace.traces_dir().exists() else []
+    return JSONResponse({"files": [{"date": f.stem, "bytes": f.stat().st_size} for f in files]},
+                        headers={"Cache-Control": "no-store"})
+
+
+@app.get("/admin/traces/{day}")
+def traces_day(day: str, request: Request) -> Response:
+    """One day's trace file as JSON lines."""
+    if not _admin_ok(request):
+        return _not_found()
+    import re as _re
+
+    if not _re.fullmatch(r"\d{4}-\d{2}-\d{2}", day):  # also blocks path tricks like ../
+        return _not_found()
+    path = trace.traces_dir() / f"{day}.jsonl"
+    if not path.is_file():
+        return _not_found()
+    return Response(path.read_bytes(), media_type="application/x-ndjson",
+                    headers={"Cache-Control": "no-store",
+                             "Content-Disposition": f'attachment; filename="traces-{day}.jsonl"'})
 
 
 # --- Pages ---------------------------------------------------------------------------
