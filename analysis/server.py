@@ -16,6 +16,7 @@ Review state lives in analysis/state/ (ignored by git, since notes quote traces)
   patterns.json         failure modes grouped from the notes (written by Claude, edited by the human)
   suggestions.json      suggested instances of a mode, awaiting accept or dismiss
   labels/<mode>.jsonl   present/absent decisions, append-only; the last line per trace wins
+  verdicts.jsonl        the reviewer's own pass/fail per trace, append-only; the last line per trace wins
 """
 
 from __future__ import annotations
@@ -222,10 +223,27 @@ class State:
                 "modes": self.read("patterns.json", "modes"),
                 "suggestions": [s for s in self.read("suggestions.json", "suggestions")
                                 if s.get("status", "pending") == "pending"],
-                "labels": self.labels()}
+                "labels": self.labels(), "verdicts": self.verdicts()}
+
+    def verdicts(self) -> list[dict]:
+        """The reviewer's own pass/fail per trace: the last decision written."""
+        current = {row["trace_key"]: row for row in _jsonl(self.folder / "verdicts.jsonl")}
+        return [r for r in current.values() if r["value"] is not None]
+
+    def verdict(self, trace_key: str, value: str | None, note: str = "") -> dict:
+        if value not in ("pass", "fail", None):
+            raise ValueError("verdict must be pass, fail, or null")
+        self.folder.mkdir(parents=True, exist_ok=True)
+        previous = next((r for r in self.verdicts() if r["trace_key"] == trace_key), None)
+        row = {"trace_key": trace_key, "value": value, "note": note, "ts": now()}
+        if previous and previous["value"] != value:
+            row["changed_from"] = previous["value"]
+        with open(self.folder / "verdicts.jsonl", "a") as f:
+            f.write(json.dumps(row) + "\n")
+        return row
 
     def version(self) -> str:
-        files = [self._path(n) for n in ("annotations.json", "patterns.json", "suggestions.json")]
+        files = [self._path(n) for n in ("annotations.json", "patterns.json", "suggestions.json", "verdicts.jsonl")]
         files += sorted((self.folder / "labels").glob("*.jsonl"))
         return ";".join(f"{f.name}:{f.stat().st_mtime_ns}" for f in files if f.exists())
 
@@ -358,6 +376,8 @@ class Handler(BaseHTTPRequestHandler):
                 if path == "/api/suggestions":
                     return self._send(200, self.state.decide_suggestion(body["id"], body["op"] == "accept",
                                                                         body.get("note")))
+                if path == "/api/verdicts":
+                    return self._send(200, self.state.verdict(body["trace_key"], body["value"], body.get("note", "")))
                 if path == "/api/labels":
                     return self._send(200, self.state.label(body["trace_key"], body["mode"], body["value"],
                                                             body.get("note", "")))

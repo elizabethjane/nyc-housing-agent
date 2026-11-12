@@ -159,3 +159,16 @@ def test_http_api(http):
 def test_http_refuses_other_hosts_and_non_json_posts(http):
     assert _call(http + "/api/state", headers={"Host": "evil.example:8020"})[0] == 403
     assert _call(http + "/api/annotations", {"op": "add"}, {"Content-Type": "text/plain"})[0] == 415
+
+
+def test_reviewer_verdicts_keep_history(tmp_path):
+    st = server.State(tmp_path)
+    st.verdict("run:x::n1", "fail", "missing two lotteries")
+    st.verdict("run:x::n1", "pass")
+    st.verdict("run:x::n2", "fail")
+    st.verdict("run:x::n2", None)
+    v = st.snapshot()["verdicts"]
+    assert v == [{**v[0], "trace_key": "run:x::n1", "value": "pass", "changed_from": "fail"}]
+    assert len((tmp_path / "verdicts.jsonl").read_text().splitlines()) == 4
+    with pytest.raises(ValueError):
+        st.verdict("run:x::n1", "maybe")

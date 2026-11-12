@@ -126,7 +126,15 @@ code{font-family:var(--mono);font-size:12px}
 .btn{font-size:11.5px;border:1px solid var(--line);background:var(--panel);border-radius:5px;padding:2px 9px;cursor:pointer}
 .btn.ok{border-color:var(--sugg);color:var(--sugg)}
 .btn.primary{border-color:var(--accent-ink);color:var(--accent-ink)}
-.pop{position:absolute;z-index:5;background:var(--panel);border:1px solid var(--line);box-shadow:0 6px 20px rgba(0,0,0,.18);border-radius:8px;padding:8px;width:320px;font-size:12px}
+.pop{position:absolute;left:0;right:0;z-index:5;background:var(--panel);border:1px solid var(--accent-ink);box-shadow:0 6px 20px rgba(0,0,0,.18);border-radius:8px;padding:8px;font-size:12px}
+.pop q{quotes:none;display:block;color:var(--muted);font-size:11.5px;margin-bottom:5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.verdict{display:flex;align-items:center;gap:6px;margin-top:10px;font-size:12.5px;flex-wrap:wrap}
+.verdict button{font-size:12px;border:1px solid var(--line);background:var(--panel);border-radius:6px;padding:3px 12px;cursor:pointer}
+.verdict button.on[data-verdict="pass"]{background:var(--pass);border-color:var(--pass);color:#fff}
+.verdict button.on[data-verdict="fail"]{background:var(--fail);border-color:var(--fail);color:#fff}
+.verdict .small{margin-left:4px}
+.you{font-size:10.5px;font-weight:600;padding:0 6px;border-radius:4px;border:1.5px solid;white-space:nowrap}
+.you.pass{color:var(--pass);border-color:var(--pass)}.you.fail{color:var(--fail);border-color:var(--fail)}
 .pop textarea{width:100%;font-size:13px;padding:6px 8px;border:1px solid var(--accent-ink);border-radius:5px;background:var(--panel);resize:vertical}
 .pop .hint{color:var(--muted);margin-top:4px}
 .expect{margin-top:40px;background:var(--panel);border:1px solid var(--line);border-radius:10px}
@@ -224,11 +232,14 @@ function md(src) {
 // --- App state ----------------------------------------------------------------------
 const S = {
   sources: [], source: null, traces: [], current: null, review: {annotations: [], modes: [], suggestions: [], labels: []},
-  version: "", view: "traces", filters: store.get("tv-filters", {status: "all", group: "all", unreviewed: false, topic: "", intention: "", q: ""}),
+  version: "", view: "traces", filters: Object.assign({status: "all", group: "all", unreviewed: false, topic: "", intention: "", q: "", verdict: ""}, store.get("tv-filters", {})),
 };
 const annotationsFor = (key) => S.review.annotations.filter((a) => a.trace_key === key);
 const suggestionsFor = (key) => S.review.suggestions.filter((s) => s.trace_key === key);
-const reviewed = (key) => annotationsFor(key).length > 0 || S.review.labels.some((l) => l.trace_key === key);
+const verdictFor = (key) => (S.review.verdicts || []).find((v) => v.trace_key === key)?.value || null;
+const reviewed = (key) => annotationsFor(key).length > 0 || !!verdictFor(key) || S.review.labels.some((l) => l.trace_key === key);
+// The grader's pass/fail against yours; "needs review" and "error" never count as a disagreement.
+const disagrees = (t) => { const v = verdictFor(t.key); return !!v && (t.status === "pass" || t.status === "fail") && v !== t.status; };
 const toast = (msg) => { const t = $("#toast"); t.textContent = msg; t.style.display = "block"; clearTimeout(toast.t); toast.t = setTimeout(() => t.style.display = "none", 3500); };
 
 async function loadSources() {
@@ -263,7 +274,7 @@ async function poll() {
 }
 function refresh() {
   renderList();
-  if (S.current) { renderHighlights(); renderMargin(); }
+  if (S.current) { renderHighlights(); renderMargin(); renderVerdict(); }
   if (S.view === "modes") renderModes();
   if (S.view === "labels") renderLabels();
 }
@@ -280,6 +291,8 @@ function renderFilters() {
     (isRun ? ["coverage", "challenge"].map((g) => `<span class="chip ${f.group === g ? "on" : ""}" data-f="group" data-v="${g}">${g[0].toUpperCase() + g.slice(1)}</span>`).join("") : "") +
     `<span class="chip ${f.unreviewed ? "on" : ""}" data-f="unreviewed">Not reviewed</span>` +
     (isRun ? ["topic", "intention"].map((d) => `<select data-sel="${d}"><option value="">${d} (all)</option>${values(d).map((v) => `<option ${f[d] === v ? "selected" : ""}>${esc(v)}</option>`).join("")}</select>`).join("") : "") +
+    `<select data-sel="verdict">${[["", "your verdict (all)"], ["pass", "you: pass"], ["fail", "you: fail"], ["none", "you: not judged"], ...(isRun ? [["disagree", "you disagree with grader"]] : [])]
+        .map(([v, l]) => `<option value="${v}" ${f.verdict === v ? "selected" : ""}>${l}</option>`).join("")}</select>` +
     `<input type="search" placeholder="Search messages" value="${esc(f.q)}" data-q>`;
 }
 $("#filters").addEventListener("click", (e) => {
@@ -297,16 +310,19 @@ function visible() {
   const f = S.filters, q = f.q.trim().toLowerCase();
   return S.traces.filter((t) => (f.status === "all" || t.status === f.status) && (f.group === "all" || !t.group || t.group === f.group)
     && (!f.unreviewed || !reviewed(t.key)) && (!f.topic || t.tuple.topic === f.topic) && (!f.intention || t.tuple.intention === f.intention)
+    && (!f.verdict || (f.verdict === "none" ? !verdictFor(t.key) : f.verdict === "disagree" ? disagrees(t) : verdictFor(t.key) === f.verdict))
     && (!q || t.title.toLowerCase().includes(q) || t.id.toLowerCase().includes(q)));
 }
 function renderList() {
   const rows = visible();
   const done = S.traces.filter((t) => reviewed(t.key)).length;
   const notes = S.review.annotations.filter((a) => a.trace_key.startsWith(S.source + "::")).length;
-  $("#counts").textContent = `${rows.length} of ${S.traces.length} traces · ${done} reviewed · ${notes} notes`;
+  const judged = S.traces.filter((t) => verdictFor(t.key)).length, dis = S.traces.filter(disagrees).length;
+  $("#counts").textContent = `${rows.length} of ${S.traces.length} traces · ${done} reviewed · ${judged} judged · ${notes} notes` + (dis ? ` · ${dis} disagree with grader` : "");
   $("#list").innerHTML = rows.map((t) => `
     <div class="row ${S.current && S.current.key === t.key ? "sel" : ""}" data-key="${esc(t.key)}">
       <div class="l1"><span class="id">${esc(t.id)}</span>${t.status ? `<span class="st ${t.status}">${esc(t.status.replace("_", " "))}</span>` : ""}
+        ${verdictFor(t.key) ? `<span class="you ${verdictFor(t.key)}" title="Your verdict">you: ${verdictFor(t.key)}</span>` : ""}
         <span class="t">${esc(t.tuple.topic || (t.meta.at || "").slice(0, 16).replace("T", " "))}</span>
         <span class="dot ${reviewed(t.key) ? "on" : ""}" title="${reviewed(t.key) ? "Reviewed" : "Not reviewed"}"></span></div>
       <div class="q">${esc(t.title)}</div></div>`).join("");
@@ -342,7 +358,8 @@ function renderTrace() {
   let h = `<div class="head"><h1><span class="id">${esc(t.id)}</span>${t.status ? `<span class="st ${t.status}">${esc(t.status.replace("_", " "))}</span>` : ""}
       ${t.group ? `<span class="pill">${esc(t.group)}</span>` : ""}</h1>
     ${tuple ? `<div class="tuple">${tuple}</div>` : ""}
-    <div class="meta">${metaBits.map((b) => `<span>${esc(b)}</span>`).join("")}${(t.flags || []).map((f) => `<span class="flag">${esc(f)}</span>`).join("")}</div></div>
+    <div class="meta">${metaBits.map((b) => `<span>${esc(b)}</span>`).join("")}${(t.flags || []).map((f) => `<span class="flag">${esc(f)}</span>`).join("")}</div>
+    <div class="verdict" id="verdict"></div></div>
     <details class="sys" id="sys"><summary>System prompt (the same in every trace with this version) · show</summary><pre>Loading…</pre></details>`;
   t.turns.forEach((turn, i) => {
     h += `<div class="turnlabel">Turn ${i + 1}</div>`;
@@ -375,8 +392,21 @@ function renderTrace() {
   $("#main").scrollTop = 0;
   $("#sys").addEventListener("toggle", loadPrompt, {once: true});
   document.querySelectorAll("#body details").forEach((d) => d.addEventListener("toggle", renderMargin));
-  renderHighlights(); renderMargin();
+  renderHighlights(); renderMargin(); renderVerdict();
 }
+function renderVerdict() {
+  const box = $("#verdict"); if (!box || !S.current) return;
+  const t = S.current, v = verdictFor(t.key);
+  const grader = t.status === "pass" || t.status === "fail" ? t.status : null;
+  box.innerHTML = `<b>Your verdict:</b>
+    <button data-verdict="pass" class="${v === "pass" ? "on" : ""}">Pass</button><button data-verdict="fail" class="${v === "fail" ? "on" : ""}">Fail</button>
+    <span class="small">${v ? (grader && grader !== v ? `Grader said ${grader}; you said ${v}.` : "Click again to clear.") : "Not judged yet."}</span>`;
+}
+$("#main").addEventListener("click", async (e) => {
+  const b = e.target.closest("[data-verdict]"); if (!b || !S.current) return;
+  const value = verdictFor(S.current.key) === b.dataset.verdict ? null : b.dataset.verdict;
+  try { await api("/api/verdicts", {trace_key: S.current.key, value}); await afterChange(); } catch (err) { toast("Not saved: " + err.message); }
+});
 function blk(cls, role, id, inner, sub) {
   return `<div class="blk ${cls}"><div class="role">${esc(role)}${sub ? `<span class="sub">${esc(sub)}</span>` : ""}</div><div class="blk-text" data-block="${id}">${inner}</div></div>`;
 }
@@ -436,6 +466,7 @@ function renderMargin() {
   const margin = $("#margin"); if (!margin || !S.current) return;
   const key = S.current.key;
   const notes = [...annotationsFor(key).map((a) => ({...a, kind: "a"})), ...suggestionsFor(key).map((s) => ({...s, kind: "s"}))];
+  const pop = margin.querySelector(".pop");
   margin.innerHTML = notes.map((n) => n.kind === "a" ? `
     <div class="mnote" data-ref="${esc(n.id)}" data-id="${esc(n.id)}"><q>“${esc(n.quote)}”</q><div class="nt">${esc(n.note)}</div>
       <div class="by"><span>${n.author === "accepted_suggestion" ? "accepted suggestion" : "you"} · ${esc(new Date(n.ts).toLocaleString([], {month: "short", day: "numeric", hour: "numeric", minute: "2-digit"}))}</span>
@@ -452,6 +483,7 @@ function renderMargin() {
     const top = Math.max(p.y, last + 8); p.el.style.top = top + "px"; last = top + p.el.offsetHeight;
     p.el.onmouseenter = () => linkHover(p.el.dataset.id, true); p.el.onmouseleave = () => linkHover(p.el.dataset.id, false);
   }
+  if (pop) margin.appendChild(pop);  // keep an open note box through re-layout
   margin.style.minHeight = Math.max(0, last) + "px";
 }
 addEventListener("resize", () => renderMargin());
@@ -500,12 +532,12 @@ $("#main").addEventListener("mouseup", (e) => {
   sel.removeAllRanges();
   const spans = wrap(startEl, start, end, () => { const s = document.createElement("span"); s.className = "pend"; return s; });
   pending = {el: startEl, spans};
-  const main = $("#main"), r = spans[spans.length - 1].getBoundingClientRect(), mr = main.getBoundingClientRect();
+  // The note box opens in the right margin, level with the selection, so it never covers the trace.
+  const margin = $("#margin"), r = spans[0].getBoundingClientRect();
   const pop = document.createElement("div"); pop.className = "pop";
-  pop.style.top = (r.bottom - mr.top + main.scrollTop + 6) + "px";
-  pop.style.left = Math.max(8, Math.min(r.left - mr.left, mr.width - 340)) + "px";
-  pop.innerHTML = `<textarea rows="2" placeholder="What went wrong here? (your own words)"></textarea><div class="hint">Enter to save · Shift+Enter for a new line · Esc to cancel</div>`;
-  main.appendChild(pop);
+  pop.style.top = Math.max(0, r.top - margin.getBoundingClientRect().top) + "px";
+  pop.innerHTML = `<q>“${esc(quote)}”</q><textarea rows="3" placeholder="What went wrong here? (your own words)"></textarea><div class="hint">Enter to save · Shift+Enter for a new line · Esc to cancel</div>`;
+  margin.appendChild(pop);
   const ta = pop.querySelector("textarea"); ta.focus();
   ta.onkeydown = async (ev) => {
     if (ev.key === "Escape") return closePop();
