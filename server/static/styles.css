@@ -8,9 +8,6 @@
   --accent: #1e3a8a;
   --accent-dark: #172554;
   --accent-soft: #e6ecf8;
-  --notice-bg: #fff6e0;
-  --notice-border: #efe2bd;
-  --notice-ink: #3d3420;
   --soon-bg: #fdebd3;
   --soon-ink: #7a3e00;
   --on-accent: #ffffff;
@@ -36,9 +33,6 @@
     --accent: #8fb0ff;
     --accent-dark: #b9ceff;
     --accent-soft: #1f2a44;
-    --notice-bg: #2b2414;
-    --notice-border: #4a3f22;
-    --notice-ink: #f0e2bd;
     --soon-bg: #3a2610;
     --soon-ink: #ffcf99;
     --on-accent: #0d1530;
@@ -74,11 +68,15 @@ nav a, .link-button { padding: 10px 0; min-height: 44px; display: inline-flex; a
 .link-button { background: none; border: 0; font: inherit; color: var(--accent); cursor: pointer; text-decoration: underline; }
 .link-button:hover { color: var(--accent-dark); }
 
-/* Notice (NOTICE-1) */
-.notice { background: var(--notice-bg); border-bottom: 1px solid var(--notice-border); color: var(--notice-ink); font-size: 13px; }
-.notice .bar { padding-top: 8px; padding-bottom: 8px; justify-content: flex-start; gap: 6px; }
-.notice a { color: var(--notice-ink); font-weight: 600; }
-.notice-short { display: none; }
+/* Independence notice (NOTICE-1): an info bubble next to the name */
+.brand-wrap { position: relative; display: flex; align-items: center; gap: 2px; }
+.info-button { width: 44px; height: 44px; border: 0; border-radius: 22px; background: transparent; color: var(--muted);
+  display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
+.info-button:hover, .info-button[aria-expanded="true"] { color: var(--accent); background: var(--surface); }
+.info-pop { position: absolute; top: calc(100% + 6px); left: 0; z-index: 10; width: min(320px, calc(100vw - 32px));
+  padding: 12px 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--bg); color: var(--ink);
+  font-size: 14px; line-height: 1.45; box-shadow: 0 6px 24px rgba(0, 0, 0, .14); }
+.info-pop[hidden] { display: none; }
 
 /* Main */
 main { flex: 1; width: 100%; max-width: var(--max); margin: 0 auto; padding: 24px 16px 16px; }
@@ -141,10 +139,8 @@ textarea:focus-visible, button:focus-visible, a:focus-visible { outline: 2px sol
 .page h2 { font-family: var(--display); font-size: 19px; margin: 24px 0 8px; }
 .page li { margin-bottom: 6px; }
 
-/* Phone: compact notice once a conversation starts (the full notice stays on the welcome screen) */
+/* Phone */
 @media (max-width: 640px) {
-  body:not(.empty) .notice-full { display: none; }
-  body:not(.empty) .notice-short { display: inline; }
   .topics { grid-template-columns: 1fr; }
   .composer-meta span:first-child { display: none; }
   .composer-meta { justify-content: flex-end; }

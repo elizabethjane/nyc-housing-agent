@@ -396,11 +396,13 @@ tune after launch.
 
 ### Public-facing notices
 
-- **NOTICE-1.** The page states, above the chat, that the agent is an
-  independent project, not affiliated with or endorsed by the City of New
-  York, HPD, or the Rent Guidelines Board, and that it gives information, not
-  legal advice. The page does not use city logos, seals, or a name that
-  suggests it is an official city service.
+- **NOTICE-1.** An info button next to the site name opens a note saying the
+  agent is an independent project, not affiliated with the City of New York,
+  HPD, or the Rent Guidelines Board, and that it gives information, not legal
+  advice. The About page says the same, and NOTICE-2 repeats "information, not
+  legal advice" in every answer about the law. The page does not use city
+  logos or seals. (Changed 2026-11-11 from an always-visible banner, at the
+  owner's request.)
 - **NOTICE-2.** Each reply that discusses a law ends with a one-line reminder
   that this is information, not legal advice, with a link to the city's
   tenant protection page.

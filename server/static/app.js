@@ -204,6 +204,16 @@
     updateComposer();
     input.focus();
   });
+  // --- Independence notice bubble: click or tap to open; Escape or a click elsewhere closes it.
+  const infoButton = document.getElementById("info-button");
+  const infoPop = document.getElementById("site-notice");
+  const setInfo = (open) => { infoPop.hidden = !open; infoButton.setAttribute("aria-expanded", String(open)); };
+  infoButton.addEventListener("click", (e) => { e.stopPropagation(); setInfo(infoPop.hidden); });
+  document.addEventListener("click", (e) => { if (!infoPop.hidden && !infoPop.contains(e.target)) setInfo(false); });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && !infoPop.hidden) { setInfo(false); infoButton.focus(); }
+  });
+
   window.addEventListener("resize", updateComposer);
   if (document.fonts) document.fonts.ready.then(updateComposer);
   updateComposer();
