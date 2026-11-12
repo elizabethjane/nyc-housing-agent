@@ -68,6 +68,38 @@ rgb_fractional_terms:
     verified: 2026-11-09
 
 # ---------------------------------------------------------------------------
+# Rent-stabilized lease renewals
+# ---------------------------------------------------------------------------
+# NYC process from DHCR Fact Sheet #4; the limits on refusing to renew for the
+# owner's own use, and the primary-residence notice, from HSTPA 2019 Parts I
+# and J (which also apply the owner-use limits to rent-controlled apartments).
+rent_stabilized_renewal:
+  term_choice_years: [1, 2]            # the tenant chooses
+  nyc_offer_window_days_before_expiration: {min: 90, max: 150}
+  tenant_days_to_accept: 60
+  owner_returns_signed_copy_days: 30
+  # An owner who will not renew must give written notice in the same offer
+  # window, or the tenant is entitled to a renewal lease.
+  nonrenewal_notice_in_offer_window: true
+  owner_use_refusal_limits:
+    units_recoverable: 1
+    requires_immediate_and_compelling_need: true
+    not_if_household_member_age_at_least: 62
+    not_if_tenant_in_building_years_at_least: 15
+    not_if_household_member_disabled: true
+  primary_residence_case_notice_days: 30
+  source:
+    id: dhcr-fact-sheet-4
+    section: "The Lease Renewal Process; Reasons for Not Renewing a Lease"
+    url: https://hcr.ny.gov/fact-sheet-4
+    verified: 2026-11-12
+  statute_source:
+    id: hstpa-2019
+    section: "Part I, § 2 (NYC Rent Stabilization Law) and § 1, § 4 (rent control); Part J, § 1"
+    url: https://rentguidelinesboard.cityofnewyork.us/wp-content/uploads/2019/11/Housing-Stability-and-Tenant-Protection-Act-of-2019.pdf
+    verified: 2026-11-12
+
+# ---------------------------------------------------------------------------
 # Good Cause Eviction Law (RPP Article 6-A), for unregulated apartments
 # ---------------------------------------------------------------------------
 good_cause:

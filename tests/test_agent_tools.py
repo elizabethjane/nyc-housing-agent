@@ -196,3 +196,21 @@ def test_housing_connect_asset_limits_match_the_hdc_policy():
 def test_source_search_finds_what_counts_toward_assets():
     hits = tools.search_sources("does my 401k retirement account count toward the asset limit")["results"]
     assert hits[0]["source_id"] == "hdc-asset-limits"
+
+
+@pytest.mark.parametrize("query, expected_source", [
+    ("landlord refuse to renew rent stabilized lease", "dhcr-fact-sheet-4"),
+    ("when does landlord have to send rent stabilized renewal", "dhcr-fact-sheet-4"),
+])
+def test_stabilized_renewal_questions_find_the_fact_sheet(query, expected_source):
+    assert tools.search_sources(query)["results"][0]["source_id"] == expected_source
+
+
+def test_hstpa_is_split_by_section_with_plain_law_names():
+    from agent.sources import get_index
+
+    titles = {s.section_id: s.title for s in get_index().sections if s.source_id == "hstpa-2019"}
+    assert len(titles) > 100
+    assert "NYC Rent Stabilization Law" in titles["part-i-s-2"]
+    hits = tools.search_sources("rent controlled landlord take apartment for family", source_id="hstpa-2019")
+    assert hits["results"][0]["section_id"] in {"part-i-s-1", "part-i-s-4"}

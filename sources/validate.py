@@ -121,6 +121,23 @@ def fact_checks(facts: dict) -> list[tuple[str, str, str]]:
     if (lrs["inflation_index_base_percent"], lrs["cap_percent"]) == (5, 10):
         checks.append(("inflation index base 5%", "nys-rpp-a6a", r"five\s+percent\s+plus\s+the\s+annual\s+percentage\s+change"))
         checks.append(("local rent standard cap 10%", "nys-rpp-a6a", r"inflation\s+index\s+or\s+ten\s+percent,\s+whichever\s+is\s+lower"))
+    ren = facts["rent_stabilized_renewal"]
+    w = ren["nyc_offer_window_days_before_expiration"]
+    checks.append((f"NYC renewal offer {w['min']}-{w['max']} days before expiration", "dhcr-fact-sheet-4",
+                   rf"not\s+more\s+than\s+{w['max']}\s+days\s+and\s+not\s+less\s+than\s+{w['min']}\s+days"))
+    checks.append((f"tenant has {ren['tenant_days_to_accept']} days to accept", "dhcr-fact-sheet-4",
+                   rf"tenant\s+has\s+{ren['tenant_days_to_accept']}\s+days\s+to\s+choose"))
+    checks.append((f"owner returns signed copy within {ren['owner_returns_signed_copy_days']} days", "dhcr-fact-sheet-4",
+                   rf"tenant\s+within\s+{ren['owner_returns_signed_copy_days']}\s+days"))
+    checks.append(("late non-renewal notice entitles tenant to renewal", "dhcr-fact-sheet-4",
+                   r"Failure\s+to\s+serve\s+this\s+notice.{0,80}entitle\s+the\s+tenant\s+to\s+a\s+renewal\s+lease"))
+    lim = ren["owner_use_refusal_limits"]
+    if (lim["not_if_household_member_age_at_least"], lim["not_if_tenant_in_building_years_at_least"]) == (62, 15):
+        checks.append(("owner-use limits: 62 or older, 15 years", "hstpa-2019",
+                       r"sixty-two\s+years\s+of\s+age\s+or\s+older.{0,120}fifteen\s+years\s+or\s+more"))
+    if ren["primary_residence_case_notice_days"] == 30:
+        checks.append(("primary residence case needs 30 days notice", "hstpa-2019",
+                       r"primary\s+residence\s+unless\s+the\s+owner.{0,60}thirty\s+days\s+notice"))
     assets = facts["lottery_assets"]
     for ami, limit in assets["rental_asset_limit_usd_by_ami_percent"].items():
         checks.append((f"rental asset limit at {ami}% AMI", "hdc-asset-limits",

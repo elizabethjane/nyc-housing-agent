@@ -219,47 +219,94 @@ def pdf_pages(data: bytes) -> list[str]:
     return [page.extract_text(extraction_mode="layout") or "" for page in PdfReader(io.BytesIO(data)).pages]
 
 
-def fetch_pdf_hstpa(source: dict) -> list[Section]:
-    """Split the HSTPA bill text into its Parts (A through O).
+HSTPA_SECTION = re.compile(r"^(?:§|Section)\s*(\d+(?:-[a-z])?)\.\s+(.*)")
+HSTPA_SUMMARY_END = re.compile(r"\s(?:is|are)\s+(?:hereby\s+)?(?:amended|added|repealed|renumbered)|\sto read as follows")
 
+
+def _law_name(summary: str) -> str | None:
+    """A plain name for the law a section amends, so searches in plain words find it."""
+    low = summary.lower()
+    m = re.search(r"section 26-(\d+)", low)
+    if m and "administrative code" in low:
+        n = int(m.group(1))
+        if 501 <= n <= 520:
+            return "NYC Rent Stabilization Law (rent-stabilized apartments)"
+        if 401 <= n <= 415:
+            return "NYC rent control law (rent-controlled apartments)"
+    for pattern, name in (
+        (r"chapter 576 of the laws of 1974", "Emergency Tenant Protection Act (rent stabilization)"),
+        (r"chapter 274 of the laws of 1946", "Emergency Housing Rent Control Law (rent control)"),
+        (r"general obligations law", "General Obligations Law"),
+        (r"real property actions and proceedings law", "Real Property Actions and Proceedings Law (evictions)"),
+        (r"real property law", "Real Property Law"),
+        (r"real property tax law", "Real Property Tax Law"),
+    ):
+        if re.search(pattern, low):
+            return name
+    return None
+
+
+def _hstpa_summary(text: str) -> str:
+    """The opening of a section, up to "is amended" or similar: which law it changes."""
+    flat = re.sub(r"\[PDF page \d+\]", " ", text)
+    flat = re.sub(r"-\s*\n\s*", "", flat)  # rejoin words hyphenated across lines
+    flat = " ".join(flat.split())
+    flat = HSTPA_SECTION.sub(r"\2", flat, count=1)
+    m = HSTPA_SUMMARY_END.search(flat)
+    summary = flat[: m.start()] if m else flat[:110]
+    return summary[:140].rstrip(" ,;") + ("…" if len(summary) > 140 or not m else "")
+
+
+def fetch_pdf_hstpa(source: dict) -> list[Section]:
+    """Split the HSTPA bill text into its numbered sections, grouped by Part (A through O).
+
+    Each section is titled with its Part, number, and the law it changes
+    ("Part I, § 3: Section 26-511 of the administrative code…"), so a search
+    lands on the paragraph that answers a question instead of a whole Part.
     The bill marks deleted text with [brackets] and new text with
-    underlining. Text extraction keeps the brackets but loses the
-    underlining, so each section carries a note saying how to read it.
+    underlining; extraction keeps the brackets but loses the underlining, so
+    each section carries a note saying how to read it.
     """
     url = source["url"]
     note = (
-        "> Bill text as passed. Text in [brackets] was deleted by the act; "
-        "added text is not marked in this copy. For a law's current wording, "
-        "prefer the NY Senate snapshot of that law."
+        "> 2019 bill text as passed. Text in [brackets] was deleted by the act; added text is not marked "
+        "in this copy. This act is the approved source for rent-stabilized and rent-controlled rules, "
+        "which the NY Senate snapshots do not include."
     )
     sections: list[Section] = []
-    title, start_page, lines = "Title and summary", 1, []
+    part, number, start_page, lines = None, None, 1, []
 
     def close(end_page: int) -> None:
         body = clean_text("\n".join(lines))
-        if body:
-            pages = f"{start_page}" if start_page == end_page else f"{start_page}-{end_page}"
-            sections.append(
-                Section(
-                    slugify(title),
-                    f"{title} (PDF pages {pages})",
-                    f"{url}#page={start_page}",
-                    f"{note}\n\n{body}",
-                )
-            )
+        if not re.sub(r"\[PDF page \d+\]", "", body).strip():
+            return
+        pages = f"{start_page}" if start_page == end_page else f"{start_page}-{end_page}"
+        if part is None:
+            title, sid = "Title and summary", "title-and-summary"
+        elif number is None:
+            title, sid = f"{part} heading", slugify(f"{part} heading")
+        else:
+            summary = _hstpa_summary(body)
+            law = _law_name(summary)
+            title = f"{part}, § {number}" + (f", {law}" if law else "") + f": {summary}"
+            sid = slugify(f"{part} s {number}")
+        sections.append(Section(sid, f"{title} (PDF p. {pages})", f"{url}#page={start_page}", f"{note}\n\n{body}"))
 
+    page_no = 1
     for page_no, text in enumerate(pdf_pages(fetch(url)), start=1):
         lines.append(f"[PDF page {page_no}]")
         for raw in text.splitlines():
             if PDF_RUNNING_HEAD.match(raw):
                 continue
-            line = PDF_LINE_NUMBER.sub("", raw, count=1)
-            part = HSTPA_PART.match(line)
-            if part:
+            line = PDF_LINE_NUMBER.sub("", raw, count=1).strip()
+            if m := HSTPA_PART.match(line):
                 close(page_no)
-                title, start_page, lines = f"Part {part.group(1)}", page_no, [f"[PDF page {page_no}]"]
+                part, number, start_page, lines = f"Part {m.group(1)}", None, page_no, [f"[PDF page {page_no}]"]
                 continue
-            lines.append(line.strip())
+            if part is not None and (m := HSTPA_SECTION.match(line)):
+                close(page_no)
+                number, start_page, lines = m.group(1), page_no, [f"[PDF page {page_no}]"]
+            lines.append(line)
     close(page_no)
     return sections
 
@@ -274,7 +321,8 @@ def fetch_pdf_pages(source: dict) -> list[Section]:
     url = source["url"]
     titles = source["fetch"].get("page_titles", [])
     sections = []
-    for page_no, page in enumerate(PdfReader(io.BytesIO(fetch(url))).pages, start=1):
+    ua = PLAIN_UA if source["fetch"].get("user_agent") == "plain" else BROWSER_UA
+    for page_no, page in enumerate(PdfReader(io.BytesIO(fetch(url, ua))).pages, start=1):
         text = clean_text(re.sub(r"\$\s+(?=\d)", "$", page.extract_text() or ""))
         text = re.sub(r"^\d+ of \d+ \w+ \d{4}\s*", "", text)  # running footer pypdf puts first
         if not text:

@@ -42,6 +42,18 @@ sources:
     kind: dataset
     dataset_id: nibs-na6y
 
+  - id: dhcr-fact-sheet-4
+    title: "NYS DHCR Fact Sheet #4: Lease Renewal in Rent Stabilized Apartments"
+    url: https://hcr.ny.gov/fact-sheet-4
+    kind: snapshot
+    fetch:
+      method: pdf_pages
+      user_agent: plain     # DHCR blocks browser-like user agents
+      page_titles: ["Rent-stabilized lease renewal: summary and process",
+                    "Rent-stabilized lease renewal: the process in detail",
+                    "Reasons an owner can refuse to renew a rent-stabilized lease, with an example",
+                    "Rent-stabilized lease renewal: example of changed terms, and DHCR borough rent offices"]
+
   - id: hdc-asset-limits
     title: "HPD/HDC Marketing: Asset Limits and Property Ownership Policies"
     url: https://www.nychdc.com/sites/default/files/2026-09/Asset%20and%20Property%20Limits_2026.pdf

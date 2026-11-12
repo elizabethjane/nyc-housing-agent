@@ -690,9 +690,19 @@ PLANS = [
              {"check": "reply_not_claims_limit", "limit_percent": LRS}])),
     (H, dict(topic="lease_renewal", style="casual", apartment_type="rent_stabilized"),
      ["landlord says he won't renew my rent stabilized lease in prospect heights. can he do that?"],
-     judged("Answers only from what the approved sources say about non-renewal of rent-stabilized leases. If they do "
-            "not answer it, says so instead of relying on general knowledge, and points to the NYC tenant "
-            "protection page. Does not apply Good Cause, which exempts rent-regulated units.", "GROUND-5, REF-3")),
+     {"evaluation": "objective",
+      "outcome": ("Says rent-stabilized tenants must generally be offered a renewal lease (1 or 2 years, the tenant's "
+                  "choice), and that an owner may refuse only for reasons the law allows, such as the owner or "
+                  "immediate family needing it as a primary residence (limited to one unit, and not where a household "
+                  "member is 62 or older, has lived in the building 15 or more years, or is disabled), the apartment "
+                  "not being the tenant's primary residence, or taking it off the market. Says the owner must give "
+                  "written notice of non-renewal 90 to 150 days before the lease ends, or the tenant is entitled to a "
+                  "renewal. Links DHCR Fact Sheet #4. Does not apply Good Cause, which exempts rent-regulated units, "
+                  "and does not advise the user what to do."),
+      "checks": [{"check": "reply_links", "urls": ["https://hcr.ny.gov/fact-sheet-4"]},
+                 {"check": "reply_states_number", "number": 90}, {"check": "reply_states_number", "number": 150},
+                 {"check": "reply_not_contains", "text": "8.38"}],
+      "source": {"type": "facts_yaml", "reference": "rent_stabilized_renewal"}}),
     (H, dict(topic="security_deposit", style="precise_formal", apartment_type="rent_stabilized"),
      ["It's been 20 days since I left my rent-stabilized apartment in Washington Heights and there's no sign of my deposit. How long does the landlord have?"],
      deposit_fact("Says the landlord must return the deposit, with an itemized statement of anything kept, within "
