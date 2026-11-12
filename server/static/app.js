@@ -204,14 +204,54 @@
     updateComposer();
     input.focus();
   });
-  // --- Independence notice bubble: click or tap to open; Escape or a click elsewhere closes it.
+  // --- Independence notice bubble. Opens on mouse hover (closing shortly after the
+  // pointer leaves both the button and the bubble), on keyboard focus, and on
+  // click or tap, which pins it open until clicked again, Escape, or a click elsewhere.
   const infoButton = document.getElementById("info-button");
   const infoPop = document.getElementById("site-notice");
-  const setInfo = (open) => { infoPop.hidden = !open; infoButton.setAttribute("aria-expanded", String(open)); };
-  infoButton.addEventListener("click", (e) => { e.stopPropagation(); setInfo(infoPop.hidden); });
-  document.addEventListener("click", (e) => { if (!infoPop.hidden && !infoPop.contains(e.target)) setInfo(false); });
+  let infoPinned = false, infoHovered = false, infoFocused = false, infoTimer = null, infoQuietFocus = false;
+  const renderInfo = () => {
+    const open = infoPinned || infoHovered || infoFocused;
+    infoPop.hidden = !open;
+    infoButton.setAttribute("aria-expanded", String(open));
+  };
+  const hoverIn = (e) => {
+    if (e.pointerType !== "mouse") return;  // touch and pen use tap instead
+    clearTimeout(infoTimer);
+    infoHovered = true;
+    renderInfo();
+  };
+  const hoverOut = (e) => {
+    if (e.pointerType !== "mouse") return;
+    clearTimeout(infoTimer);
+    infoTimer = setTimeout(() => { infoHovered = false; renderInfo(); }, 200);
+  };
+  [infoButton, infoPop].forEach((el) => {
+    el.addEventListener("pointerenter", hoverIn);
+    el.addEventListener("pointerleave", hoverOut);
+  });
+  infoButton.addEventListener("focus", () => {
+    if (infoQuietFocus) { infoQuietFocus = false; return; }  // focus returned by Escape: stay closed
+    if (infoButton.matches(":focus-visible")) { infoFocused = true; renderInfo(); }
+  });
+  infoButton.addEventListener("blur", () => { infoFocused = false; renderInfo(); });
+  infoButton.addEventListener("click", (e) => {
+    e.stopPropagation();
+    infoPinned = !infoPinned;
+    if (!infoPinned) { infoHovered = false; infoFocused = false; }
+    renderInfo();
+  });
+  document.addEventListener("click", (e) => {
+    if (!infoPop.hidden && !infoPop.contains(e.target)) { infoPinned = infoHovered = infoFocused = false; renderInfo(); }
+  });
   document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape" && !infoPop.hidden) { setInfo(false); infoButton.focus(); }
+    if (e.key === "Escape" && !infoPop.hidden) {
+      infoPinned = infoHovered = infoFocused = false;
+      renderInfo();
+      infoQuietFocus = true;
+      infoButton.focus();
+      setTimeout(() => { infoQuietFocus = false; }, 0);  // the button may already have had focus
+    }
   });
 
   window.addEventListener("resize", updateComposer);
