@@ -10,19 +10,37 @@
   let busy = false;
 
   // --- Bot check (Cloudflare Turnstile), only when the server has a site key.
-  // The token goes with the next message; once the server accepts it, the
-  // session stays verified, so later messages need no token.
+  // "interaction-only" keeps the widget hidden unless Cloudflare needs the
+  // visitor to click, which is rare. The token goes with the next message;
+  // once the server accepts it, the session stays verified.
   const botBox = document.getElementById("bot-check");
+  let botNeeded = false;
+  let botVerified = false;
   let botToken = null;
   let botWidget = null;
+  let botWaiters = [];
+  const setToken = (token) => {
+    botToken = token;
+    if (token) { botWaiters.forEach((resolve) => resolve(token)); botWaiters = []; }
+  };
+  // Resolves with a token, or null after `ms` so a slow check never blocks sending forever.
+  const waitForToken = (ms) => (botToken ? Promise.resolve(botToken) : new Promise((resolve) => {
+    botWaiters.push(resolve);
+    setTimeout(() => resolve(botToken), ms);
+  }));
   fetch("/api/status").then((r) => r.json()).then((s) => {
     if (!s.turnstile_site_key) return;
-    botBox.hidden = false;
+    botNeeded = true;
     window.onTurnstileLoad = () => {
       botWidget = window.turnstile.render(botBox, {
         sitekey: s.turnstile_site_key,
-        callback: (token) => { botToken = token; },
-        "expired-callback": () => { botToken = null; },
+        appearance: "interaction-only",
+        size: "flexible",
+        theme: "light",
+        callback: setToken,
+        "expired-callback": () => setToken(null),
+        "before-interactive-callback": () => { botBox.hidden = false; },
+        "after-interactive-callback": () => { botBox.hidden = true; },
       });
     };
     const script = document.createElement("script");
@@ -132,15 +150,15 @@
     const typing = addTyping();
     scrollToEnd();
     try {
+      const token = botNeeded && !botVerified ? await waitForToken(15000) : null;
       const res = await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: text, turnstile_token: botToken }) });
+        body: JSON.stringify({ message: text, turnstile_token: token }) });
       const data = await res.json().catch(() => ({}));
       if (data.error === "bot_check") {
+        setToken(null);
         if (botWidget !== null && window.turnstile) window.turnstile.reset(botWidget);
-        botToken = null;
-      } else if (res.ok && botToken) {
-        botBox.hidden = true;  // verified for this conversation
-        botToken = null;
+      } else if (res.ok && token) {
+        botVerified = true;  // the server remembers this conversation; no more checks
       }
       typing.remove();
       addAgent(data.reply || "Sorry, something went wrong. Please try again.", data.turn_id,
@@ -175,6 +193,11 @@
   document.querySelectorAll(".starter").forEach((b) => b.addEventListener("click", () => ask(b.textContent)));
   document.getElementById("new-chat").addEventListener("click", async () => {
     try { await fetch("/api/new", { method: "POST" }); } catch (_) { /* start fresh locally anyway */ }
+    if (botNeeded) {  // a new conversation is a new session on the server, so it needs a fresh check
+      botVerified = false;
+      setToken(null);
+      if (botWidget !== null && window.turnstile) window.turnstile.reset(botWidget);
+    }
     list.innerHTML = "";
     document.body.classList.add("empty");
     input.value = "";
