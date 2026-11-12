@@ -181,6 +181,7 @@ class TurnResult:
     stop_reason: str | None = None
     removed_links: list[str] = field(default_factory=list)
     model_calls: int = 0
+    steps: list[dict] = field(default_factory=list)  # one per model call, in order (for the trace viewer)
 
 
 def _client():
@@ -193,6 +194,16 @@ def _text(content) -> str:
     return "\n\n".join(b.text for b in content if getattr(b, "type", None) == "text" and b.text).strip()
 
 
+def _thinking(content) -> str:
+    return "\n\n".join(getattr(b, "thinking", "") or "" for b in content
+                         if getattr(b, "type", None) == "thinking").strip()
+
+
+def _usage(usage) -> dict:
+    return {k: getattr(usage, k, 0) or 0 for k in
+            ("input_tokens", "output_tokens", "cache_read_input_tokens", "cache_creation_input_tokens")}
+
+
 def run_turn(session: Session, user_text: str, client: Any = None, *, record: bool = True,
              turn_id: str | None = None) -> TurnResult:
     """Answer one user message. Never raises for limits or guards; returns a canned reply instead."""
@@ -202,7 +213,7 @@ def run_turn(session: Session, user_text: str, client: Any = None, *, record: bo
                      "reply": result.reply, "blocked": result.blocked, "model": result.model,
                      "stop_reason": result.stop_reason, "cost_usd": round(result.cost_usd, 6),
                      "model_calls": result.model_calls, "tool_calls": result.tool_calls,
-                     "removed_links": result.removed_links})
+                     "removed_links": result.removed_links, "steps": result.steps})
     return result
 
 
@@ -244,6 +255,10 @@ def _run_turn(session: Session, user_text: str, client: Any) -> TurnResult:
         with db.connection() as conn:
             limits.record_spend(conn, call_cost)
         session.messages.append({"role": "assistant", "content": response.content})
+        step = {"call": out.model_calls, "stop_reason": response.stop_reason, "cost_usd": round(call_cost, 6),
+                "thinking": _thinking(response.content), "text": _text(response.content), "tools": [],
+                "usage": _usage(response.usage)}
+        out.steps.append(step)
 
         if response.stop_reason == "pause_turn":
             continue
@@ -269,6 +284,7 @@ def _run_turn(session: Session, user_text: str, client: Any) -> TurnResult:
                 tool_budget -= 1
                 result = run_tool(block.name, dict(block.input or {}))
             out.tool_calls.append({"name": block.name, "input": dict(block.input or {}), "result": result})
+            step["tools"].append(out.tool_calls[-1])
             tool_results.append({"type": "tool_result", "tool_use_id": block.id,
                                  "content": json.dumps(result, default=str)})
         session.messages.append({"role": "user", "content": tool_results})

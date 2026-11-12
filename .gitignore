@@ -5,3 +5,4 @@ __pycache__/
 runs/
 data/traces/
 .pytest_cache/
+analysis/state/

@@ -1,0 +1,607 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Trace Review · NYC Housing Agent</title>
+<style>
+:root{
+  --bg:#f6f7f9; --panel:#fff; --ink:#1b2330; --muted:#6b7480; --line:#e3e6eb; --soft:#f1f3f6; --sel:#eef2f9;
+  --accent:#1f3a68; --accent-ink:#1f3a68;
+  --user:#2f6fd6; --user-bg:#eef4fd;
+  --agent:#2f8a5b; --agent-bg:#eef7f1;
+  --think:#7b8490; --think-bg:#f7f8fa;
+  --tool:#a86c12; --tool-bg:#fdf6ea; --tool-line:#efdcb8; --tool-res:#fff;
+  --guard:#c2413a; --guard-bg:#fcefee;
+  --note:#f8e08a; --note-bg:#fff8db; --note-line:#ecd98f; --note-edge:#c99a00;
+  --sugg:#7d55cc; --sugg-bg:#f4effc; --sugg-hl:#ebe2fa;
+  --pass:#2f8a5b; --fail:#c2413a; --review:#b7791f; --error:#6b7480; --blocked:#8a5a9e;
+  --mono:ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#12161d; --panel:#1a1f28; --ink:#e4e8ee; --muted:#97a0ad; --line:#2b323d; --soft:#232a35; --sel:#1f2b40;
+    --accent:#1f3a68; --accent-ink:#9db8e8;
+    --user:#6c9ef0; --user-bg:#18243a;
+    --agent:#5cbf8a; --agent-bg:#16271f;
+    --think:#8d96a3; --think-bg:#1c2129;
+    --tool:#e0a54a; --tool-bg:#2a2216; --tool-line:#4a3a20; --tool-res:#1d1a14;
+    --guard:#ef7a72; --guard-bg:#2e1a1a;
+    --note:#6b5a14; --note-bg:#2a2614; --note-line:#4d4520; --note-edge:#d9b437;
+    --sugg:#b195f0; --sugg-bg:#241e33; --sugg-hl:#352a52;
+  }
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 -apple-system,BlinkMacSystemFont,"Inter",system-ui,sans-serif}
+button,select,input,textarea{font:inherit;color:inherit}
+a{color:var(--accent-ink)}
+code{font-family:var(--mono);font-size:12px}
+.top{display:flex;align-items:center;gap:20px;padding:8px 18px;background:var(--accent);color:#fff;height:46px}
+.top b{font-weight:600}
+.tabs{display:flex;gap:4px}
+.tabs button{padding:4px 12px;border-radius:6px;font-size:13px;border:0;background:none;color:#fff;opacity:.75;cursor:pointer}
+.tabs button.on{background:rgba(255,255,255,.18);opacity:1}
+.top .src{margin-left:auto;font-size:12px;display:flex;gap:8px;align-items:center}
+.top select{font-size:12px;border-radius:5px;border:0;padding:3px 6px;max-width:360px;color:#1b2330;background:#fff}
+.view{display:none;height:calc(100vh - 46px)}
+.view.on{display:grid}
+#v-traces{grid-template-columns:310px 1fr}
+#v-modes,#v-labels{display:none;overflow:auto;padding:22px 26px}
+#v-modes.on,#v-labels.on{display:block}
+/* sidebar */
+.side{border-right:1px solid var(--line);background:var(--panel);overflow:auto;display:flex;flex-direction:column}
+.filters{padding:10px 12px;border-bottom:1px solid var(--line);display:flex;flex-wrap:wrap;gap:6px}
+.chip{font-size:11.5px;padding:2px 8px;border-radius:999px;border:1px solid var(--line);background:var(--panel);color:var(--muted);cursor:pointer}
+.chip.on{border-color:var(--accent-ink);color:var(--accent-ink);background:var(--sel)}
+.filters select,.filters input{font-size:12px;border:1px solid var(--line);border-radius:6px;padding:2px 6px;background:var(--panel)}
+.filters input{flex:1;min-width:120px}
+.counts{padding:7px 12px;font-size:12px;color:var(--muted);border-bottom:1px solid var(--line)}
+#list{flex:1;overflow:auto}
+.row{padding:9px 12px;border-bottom:1px solid var(--line);cursor:pointer}
+.row:hover{background:var(--soft)}
+.row.sel{background:var(--sel);box-shadow:inset 3px 0 0 var(--accent-ink)}
+.row .l1{display:flex;align-items:center;gap:6px;font-size:12.5px}
+.row .id{font-family:var(--mono);font-weight:600}
+.row .t{color:var(--muted);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .q{font-size:12.5px;opacity:.85;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px}
+.st{font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;padding:1px 6px;border-radius:4px;color:#fff;white-space:nowrap}
+.st.pass{background:var(--pass)}.st.fail{background:var(--fail)}.st.needs_review,.st.review{background:var(--review)}
+.st.error{background:var(--error)}.st.blocked{background:var(--blocked)}
+.dot{width:8px;height:8px;border-radius:50%;margin-left:auto;flex:none;border:1px solid #c8cdd4}
+.dot.on{background:#f0a400;border-color:#f0a400}
+/* trace */
+.main{overflow:auto;padding:20px 24px 80px;position:relative}
+.empty{color:var(--muted);padding:40px}
+.cols{display:flex;gap:20px;max-width:1060px}
+.body{flex:1;min-width:0;max-width:760px}
+.margin{width:250px;position:relative;flex:none}
+.head{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin-bottom:24px}
+.head h1{margin:0 0 4px;font-size:17px;display:flex;gap:10px;align-items:center}
+.head h1 .id{font-family:var(--mono)}
+.tuple{display:flex;flex-wrap:wrap;gap:5px;margin:8px 0}
+.tuple span{font-size:11.5px;background:var(--soft);border-radius:4px;padding:1px 7px}
+.tuple span i{font-style:normal;color:var(--muted)}
+.meta{font-size:12px;color:var(--muted);display:flex;gap:14px;flex-wrap:wrap;align-items:center}
+.flag{font-size:11px;color:var(--guard);border:1px solid var(--guard);background:var(--guard-bg);border-radius:4px;padding:0 6px}
+.sys{font-size:12.5px;border:1px dashed var(--line);border-radius:8px;padding:8px 12px;margin-bottom:28px;background:var(--panel)}
+.sys>summary{cursor:pointer;opacity:.55}
+.sys pre{white-space:pre-wrap;font-family:var(--mono);font-size:11.5px;opacity:.75;max-height:420px;overflow:auto}
+.turnlabel{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);margin:30px 0 8px}
+.blk{border-left:3px solid;border-radius:0 8px 8px 0;padding:9px 13px;margin-bottom:6px;background:var(--panel)}
+.role{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px;user-select:none}
+.role .sub{font-weight:500;text-transform:none;letter-spacing:0;color:var(--muted);margin-left:6px}
+.user{border-color:var(--user);background:var(--user-bg)}.user>.role{color:var(--user)}
+.agent{border-color:var(--agent);background:var(--agent-bg)}.agent>.role{color:var(--agent)}
+.agent.mid{border-left-style:dashed;opacity:.92}
+.think{border-color:var(--think);background:var(--think-bg);font-style:italic;font-size:13px;opacity:.9}.think>.role{color:var(--think);font-style:normal}
+.guard{border-color:var(--guard);background:var(--guard-bg);font-size:13px}.guard>.role{color:var(--guard)}
+.txt{white-space:pre-wrap;overflow-wrap:anywhere}
+.md p{margin:4px 0}.md ul,.md ol{margin:4px 0;padding-left:22px}.md h3{font-size:14px;margin:8px 0 2px}
+.toolbox{border:1px solid var(--tool-line);border-radius:8px;background:var(--tool-bg);padding:8px 10px;margin:6px 0}
+.toolbox>.role{color:var(--tool)}
+.call{font-family:var(--mono);font-size:12.5px;margin:2px 0 6px;overflow-wrap:anywhere}
+.call b{color:var(--tool)}
+.res{font-family:var(--mono);font-size:12px;background:var(--tool-res);border:1px solid var(--tool-line);border-radius:6px;padding:6px 9px}
+.res summary{cursor:pointer;overflow-wrap:anywhere}
+.res pre{margin:6px 0 0;white-space:pre-wrap;overflow-wrap:anywhere;max-height:520px;overflow:auto}
+.res.err summary{color:var(--guard)}
+.legacy{font-size:11.5px;color:var(--muted);margin:2px 0 6px}
+.hl{background:var(--note);border-radius:2px;outline:2px solid transparent;cursor:pointer}
+.hl.hover,.sg.hover{outline-color:var(--note-edge)}
+.sg{background:var(--sugg-hl);border-bottom:2px dashed var(--sugg);cursor:pointer}
+.pend{background:#b9d2fa;color:#1b2330}
+.mnote{position:absolute;left:0;right:0;background:var(--note-bg);border:1px solid var(--note-line);border-left:3px solid var(--note-edge);border-radius:6px;padding:7px 9px;font-size:12.5px}
+.mnote.hover{box-shadow:0 0 0 2px var(--note-edge)}
+.mnote q{quotes:none;display:block;color:var(--muted);font-size:11.5px;margin-bottom:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mnote .by{font-size:10.5px;color:var(--muted);margin-top:4px;display:flex;justify-content:space-between;gap:6px}
+.mnote .acts{visibility:hidden;display:flex;gap:8px}
+.mnote:hover .acts{visibility:visible}
+.mnote .acts button{border:0;background:none;padding:0;color:var(--accent-ink);cursor:pointer;font-size:10.5px}
+.mnote.s{background:var(--sugg-bg);border-color:var(--sugg-hl);border-left-color:var(--sugg)}
+.mnote textarea{width:100%;font-size:12.5px;border:1px solid var(--line);border-radius:5px;padding:4px;background:var(--panel)}
+.tag{font-size:10px;font-weight:700;text-transform:uppercase;color:var(--sugg)}
+.btns{display:flex;gap:6px;margin-top:6px}
+.btn{font-size:11.5px;border:1px solid var(--line);background:var(--panel);border-radius:5px;padding:2px 9px;cursor:pointer}
+.btn.ok{border-color:var(--sugg);color:var(--sugg)}
+.btn.primary{border-color:var(--accent-ink);color:var(--accent-ink)}
+.pop{position:absolute;z-index:5;background:var(--panel);border:1px solid var(--line);box-shadow:0 6px 20px rgba(0,0,0,.18);border-radius:8px;padding:8px;width:320px;font-size:12px}
+.pop textarea{width:100%;font-size:13px;padding:6px 8px;border:1px solid var(--accent-ink);border-radius:5px;background:var(--panel);resize:vertical}
+.pop .hint{color:var(--muted);margin-top:4px}
+.expect{margin-top:40px;background:var(--panel);border:1px solid var(--line);border-radius:10px}
+.expect>summary{padding:11px 16px;cursor:pointer;font-weight:600;font-size:13.5px}
+.expect .in{padding:0 16px 14px;font-size:13px}
+.ck{display:flex;gap:8px;align-items:baseline;padding:5px 0;border-top:1px solid var(--line)}
+.ck .d{color:var(--muted);font-size:12px;overflow-wrap:anywhere}
+.help{position:fixed;right:18px;bottom:14px;font-size:12px;color:var(--muted);background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:6px 10px}
+.toast{position:fixed;left:50%;top:58px;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:7px 14px;border-radius:8px;font-size:13px;display:none;z-index:9}
+/* modes */
+.wide{max-width:1000px}
+.wide h2{font-size:16px;margin:26px 0 10px}
+.wide h2:first-child{margin-top:0}
+.lead{color:var(--muted);font-size:13px;margin:-4px 0 12px}
+.mode{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-bottom:10px}
+.mode h3{margin:0;font-size:14px;font-family:var(--mono);display:flex;gap:10px;align-items:center}
+.mode .def{margin:4px 0 8px;font-size:13px}
+.bar{height:6px;background:var(--soft);border-radius:3px;overflow:hidden;margin:6px 0}
+.bar i{display:block;height:100%;background:var(--note-edge)}
+.ex{font-size:12.5px;padding:4px 0;border-top:1px solid var(--line);display:flex;gap:8px}
+.ex a{font-family:var(--mono);white-space:nowrap;cursor:pointer}
+.small{font-size:11.5px;color:var(--muted)}
+.pill{font-size:10.5px;border:1px solid var(--line);border-radius:999px;padding:0 7px;color:var(--muted);font-family:-apple-system,system-ui,sans-serif;font-weight:500}
+/* labels */
+table{border-collapse:collapse;background:var(--panel);font-size:12.5px}
+th,td{border:1px solid var(--line);padding:5px 8px;text-align:left;vertical-align:top}
+th{font-family:var(--mono);font-size:11.5px;font-weight:600;background:var(--soft)}
+td select{font-size:12px;border:1px solid var(--line);border-radius:4px;background:var(--panel)}
+td.missing select{border-color:var(--review);background:var(--note-bg)}
+td input{font-size:12px;border:1px solid var(--line);border-radius:4px;width:180px;background:var(--panel)}
+td a{font-family:var(--mono);cursor:pointer}
+</style>
+</head>
+<body>
+<div class="top">
+  <b>NYC Housing Agent · Trace review</b>
+  <div class="tabs" role="tablist">
+    <button data-view="traces" class="on">Traces</button><button data-view="modes">Failure modes</button><button data-view="labels">Labeling</button>
+  </div>
+  <div class="src"><label for="source">Source</label><select id="source"></select></div>
+</div>
+
+<div class="view on" id="v-traces">
+  <aside class="side">
+    <div class="filters" id="filters"></div>
+    <div class="counts" id="counts"></div>
+    <div id="list"></div>
+  </aside>
+  <main class="main" id="main"><div class="empty">Pick a trace.</div></main>
+</div>
+<div class="view" id="v-modes"><div class="wide" id="modes"></div></div>
+<div class="view" id="v-labels"><div class="wide" id="labels"></div></div>
+
+<div class="help" id="help">Select text → type a note → Enter. One note per trace, on the first failure. j / k: next / previous trace.</div>
+<div class="toast" id="toast"></div>
+
+<script>
+"use strict";
+const $ = (s, el = document) => el.querySelector(s);
+const esc = (s) => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+const api = async (path, body) => {
+  const r = await fetch(path, body ? {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(body)} : {});
+  const data = await r.json();
+  if (!r.ok) throw new Error(data.error || r.status);
+  return data;
+};
+const store = {get(k, d) { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } },
+               set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} }};
+
+// --- Markdown (same rules as the public site) --------------------------------------
+function inline(text) {
+  let s = esc(text);
+  s = s.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, (_, l, u) => `<a href="${u}" target="_blank" rel="noopener noreferrer">${l}</a>`);
+  s = s.replace(/(^|[\s(])(https?:\/\/[^\s<)]+[^\s<).,;:!?])/g, (_, p, u) => `${p}<a href="${u}" target="_blank" rel="noopener noreferrer">${u}</a>`);
+  s = s.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+  s = s.replace(/`([^`]+)`/g, "<code>$1</code>");
+  return s;
+}
+function md(src) {
+  const out = []; let list = null, para = [];
+  const fp = () => { if (para.length) { out.push(`<p>${para.map(inline).join("<br>")}</p>`); para = []; } };
+  const cl = () => { if (list) { out.push(`</${list}>`); list = null; } };
+  for (const raw of String(src || "").split("\n")) {
+    const line = raw.trimEnd();
+    const b = line.match(/^\s*[-*•]\s+(.*)$/), n = line.match(/^\s*\d+[.)]\s+(.*)$/), h = line.match(/^#{1,6}\s+(.*)$/);
+    if (b || n) { fp(); const t = b ? "ul" : "ol"; if (list !== t) { cl(); out.push(`<${t}>`); list = t; } out.push(`<li>${inline((b || n)[1])}</li>`); }
+    else if (h) { fp(); cl(); out.push(`<h3>${inline(h[1])}</h3>`); }
+    else if (!line.trim()) { fp(); cl(); }
+    else { cl(); para.push(line); }
+  }
+  fp(); cl();
+  return out.join("");
+}
+
+// --- App state ----------------------------------------------------------------------
+const S = {
+  sources: [], source: null, traces: [], current: null, review: {annotations: [], modes: [], suggestions: [], labels: []},
+  version: "", view: "traces", filters: store.get("tv-filters", {status: "all", group: "all", unreviewed: false, topic: "", intention: "", q: ""}),
+};
+const annotationsFor = (key) => S.review.annotations.filter((a) => a.trace_key === key);
+const suggestionsFor = (key) => S.review.suggestions.filter((s) => s.trace_key === key);
+const reviewed = (key) => annotationsFor(key).length > 0 || S.review.labels.some((l) => l.trace_key === key);
+const toast = (msg) => { const t = $("#toast"); t.textContent = msg; t.style.display = "block"; clearTimeout(toast.t); toast.t = setTimeout(() => t.style.display = "none", 3500); };
+
+async function loadSources() {
+  S.sources = (await api("/api/sources")).sources;
+  const sel = $("#source");
+  sel.innerHTML = S.sources.map((s) => `<option value="${esc(s.id)}">${esc(s.label)} · ${s.count}</option>`).join("")
+    || `<option value="">No traces yet: run scenarios.runner or scripts/pull_traces.py</option>`;
+  const saved = store.get("tv-source", null);
+  S.source = S.sources.some((s) => s.id === saved) ? saved : (S.sources[0] || {}).id || null;
+  if (S.source) sel.value = S.source;
+}
+async function loadTraces() {
+  S.traces = S.source ? (await api(`/api/traces?source=${encodeURIComponent(S.source)}`)).traces : [];
+  renderFilters(); renderList();
+  const want = location.hash.slice(1) && decodeURIComponent(location.hash.slice(1));
+  const pick = S.traces.find((t) => t.key === want) || S.traces.find((t) => t.key === store.get("tv-trace", ""));
+  if (pick) openTrace(pick.key); else { S.current = null; $("#main").innerHTML = `<div class="empty">${S.traces.length ? "Pick a trace." : "No traces in this source."}</div>`; }
+}
+async function loadState() {
+  const r = await api("/api/state");
+  const before = S.review.suggestions.length;
+  S.version = r.version; S.review = r;
+  store.set("tv-review-backup", r);
+  if (r.suggestions.length > before && before !== -1 && S.loaded) toast(`${r.suggestions.length - before} new suggestion(s)`);
+  S.loaded = true;
+}
+async function poll() {
+  try {
+    const v = (await api("/api/version")).version;
+    if (v !== S.version && !$(".pop") && !$(".mnote textarea")) { await loadState(); refresh(); }
+  } catch {}
+}
+function refresh() {
+  renderList();
+  if (S.current) { renderHighlights(); renderMargin(); }
+  if (S.view === "modes") renderModes();
+  if (S.view === "labels") renderLabels();
+}
+
+// --- List and filters -----------------------------------------------------------------
+function renderFilters() {
+  const f = S.filters, isRun = (S.source || "").startsWith("run:");
+  const count = (st) => S.traces.filter((t) => t.status === st).length;
+  const statuses = isRun ? [["all", "All"], ["fail", "Fail"], ["needs_review", "Needs review"], ["pass", "Pass"], ["error", "Error"]]
+                         : [["all", "All"], ["blocked", "Blocked"]];
+  const values = (dim) => [...new Set(S.traces.map((t) => t.tuple[dim]).filter(Boolean))].sort();
+  $("#filters").innerHTML =
+    statuses.map(([v, l]) => `<span class="chip ${f.status === v ? "on" : ""}" data-f="status" data-v="${v}">${l}${v === "all" ? "" : " " + count(v)}</span>`).join("") +
+    (isRun ? ["coverage", "challenge"].map((g) => `<span class="chip ${f.group === g ? "on" : ""}" data-f="group" data-v="${g}">${g[0].toUpperCase() + g.slice(1)}</span>`).join("") : "") +
+    `<span class="chip ${f.unreviewed ? "on" : ""}" data-f="unreviewed">Not reviewed</span>` +
+    (isRun ? ["topic", "intention"].map((d) => `<select data-sel="${d}"><option value="">${d} (all)</option>${values(d).map((v) => `<option ${f[d] === v ? "selected" : ""}>${esc(v)}</option>`).join("")}</select>`).join("") : "") +
+    `<input type="search" placeholder="Search messages" value="${esc(f.q)}" data-q>`;
+}
+$("#filters").addEventListener("click", (e) => {
+  const c = e.target.closest(".chip"); if (!c) return;
+  const f = S.filters;
+  if (c.dataset.f === "unreviewed") f.unreviewed = !f.unreviewed;
+  else if (c.dataset.f === "group") f.group = f.group === c.dataset.v ? "all" : c.dataset.v;
+  else f.status = c.dataset.v;
+  store.set("tv-filters", f); renderFilters(); renderList();
+});
+$("#filters").addEventListener("change", (e) => { if (e.target.dataset.sel) { S.filters[e.target.dataset.sel] = e.target.value; store.set("tv-filters", S.filters); renderList(); } });
+$("#filters").addEventListener("input", (e) => { if ("q" in e.target.dataset) { S.filters.q = e.target.value; store.set("tv-filters", S.filters); renderList(); } });
+
+function visible() {
+  const f = S.filters, q = f.q.trim().toLowerCase();
+  return S.traces.filter((t) => (f.status === "all" || t.status === f.status) && (f.group === "all" || !t.group || t.group === f.group)
+    && (!f.unreviewed || !reviewed(t.key)) && (!f.topic || t.tuple.topic === f.topic) && (!f.intention || t.tuple.intention === f.intention)
+    && (!q || t.title.toLowerCase().includes(q) || t.id.toLowerCase().includes(q)));
+}
+function renderList() {
+  const rows = visible();
+  const done = S.traces.filter((t) => reviewed(t.key)).length;
+  const notes = S.review.annotations.filter((a) => a.trace_key.startsWith(S.source + "::")).length;
+  $("#counts").textContent = `${rows.length} of ${S.traces.length} traces · ${done} reviewed · ${notes} notes`;
+  $("#list").innerHTML = rows.map((t) => `
+    <div class="row ${S.current && S.current.key === t.key ? "sel" : ""}" data-key="${esc(t.key)}">
+      <div class="l1"><span class="id">${esc(t.id)}</span>${t.status ? `<span class="st ${t.status}">${esc(t.status.replace("_", " "))}</span>` : ""}
+        <span class="t">${esc(t.tuple.topic || (t.meta.at || "").slice(0, 16).replace("T", " "))}</span>
+        <span class="dot ${reviewed(t.key) ? "on" : ""}" title="${reviewed(t.key) ? "Reviewed" : "Not reviewed"}"></span></div>
+      <div class="q">${esc(t.title)}</div></div>`).join("");
+}
+$("#list").addEventListener("click", (e) => { const r = e.target.closest(".row"); if (r) openTrace(r.dataset.key); });
+document.addEventListener("keydown", (e) => {
+  if (S.view !== "traces" || e.target.closest("input,textarea,select") || e.metaKey || e.ctrlKey) return;
+  if (e.key !== "j" && e.key !== "k") return;
+  const rows = visible(), i = rows.findIndex((t) => S.current && t.key === S.current.key);
+  const next = rows[Math.max(0, Math.min(rows.length - 1, i + (e.key === "j" ? 1 : -1)))];
+  if (next) { openTrace(next.key); $(`.row[data-key="${CSS.escape(next.key)}"]`)?.scrollIntoView({block: "nearest"}); }
+});
+
+// --- Trace view -------------------------------------------------------------------------
+async function openTrace(key) {
+  closePop();
+  const t = await api(`/api/trace?source=${encodeURIComponent(S.source)}&key=${encodeURIComponent(key)}`);
+  const summary = S.traces.find((x) => x.key === key);
+  t.flags = summary ? summary.flags : [];
+  S.current = t; store.set("tv-trace", key);
+  history.replaceState(null, "", "#" + encodeURIComponent(key));
+  renderList(); renderTrace();
+}
+const pretty = (v) => esc(JSON.stringify(v, null, 2));
+const callArgs = (input) => Object.entries(input || {}).map(([k, v]) => `${esc(k)}=${esc(JSON.stringify(v))}`).join(", ");
+
+function renderTrace() {
+  const t = S.current, m = t.meta;
+  const tuple = Object.entries(t.tuple || {}).filter(([k]) => k !== "turn_count").map(([k, v]) => `<span><i>${esc(k)}</i> ${esc(v)}</span>`).join("");
+  const metaBits = [`${m.turns} turn${m.turns === 1 ? "" : "s"}`, `${m.tool_calls} tool call${m.tool_calls === 1 ? "" : "s"}`, `${m.model_calls} model call${m.model_calls === 1 ? "" : "s"}`,
+    `$${(m.cost_usd || 0).toFixed(3)}`, m.seconds != null ? `${m.seconds} s` : null, m.model, m.prompt_version ? `prompt ${m.prompt_version}` : null,
+    m.at ? m.at.slice(0, 16).replace("T", " ") : null].filter(Boolean);
+  let h = `<div class="head"><h1><span class="id">${esc(t.id)}</span>${t.status ? `<span class="st ${t.status}">${esc(t.status.replace("_", " "))}</span>` : ""}
+      ${t.group ? `<span class="pill">${esc(t.group)}</span>` : ""}</h1>
+    ${tuple ? `<div class="tuple">${tuple}</div>` : ""}
+    <div class="meta">${metaBits.map((b) => `<span>${esc(b)}</span>`).join("")}${(t.flags || []).map((f) => `<span class="flag">${esc(f)}</span>`).join("")}</div></div>
+    <details class="sys" id="sys"><summary>System prompt (the same in every trace with this version) · show</summary><pre>Loading…</pre></details>`;
+  t.turns.forEach((turn, i) => {
+    h += `<div class="turnlabel">Turn ${i + 1}</div>`;
+    h += blk("user", "User", `t${i}-user`, `<div class="txt">${esc(turn.user)}</div>`);
+    if (turn.blocked) h += blk("guard", "Guard", `t${i}-guard`, `<div class="txt">Answered without the model: <b>${esc(turn.blocked)}</b></div>`);
+    const last = turn.steps.length - 1;
+    turn.steps.forEach((s, j) => {
+      if (s.thinking) h += blk("think", "Thinking", `t${i}-s${j}-think`, `<div class="txt">${esc(s.thinking)}</div>`, `model call ${j + 1}`);
+      if (s.text && (j < last || s.tools.length)) h += blk("agent mid", "Agent (before tools)", `t${i}-s${j}-text`, `<div class="md">${md(s.text)}</div>`);
+      if (s.legacy) h += `<div class="legacy">Older trace: tool calls only, without the agent's text or thinking between them.</div>`;
+      s.tools.forEach((c, k) => {
+        const err = c.result && c.result.ok === false;
+        h += `<div class="toolbox"><div class="role">Tool · ${esc(c.name)}</div>
+          <div class="call blk-text" data-block="t${i}-s${j}-k${k}-in"><b>${esc(c.name)}</b>(${callArgs(c.input)})</div>
+          <details class="res ${err ? "err" : ""}"><summary>${esc(c.summary)}</summary><pre class="blk-text" data-block="t${i}-s${j}-k${k}-out">${pretty(c.result)}</pre></details></div>`;
+      });
+    });
+    if (turn.removed_links.length) h += blk("guard", "Guard", `t${i}-links`, `<div class="txt">Removed ${turn.removed_links.length} link(s) not on the allowlist: ${turn.removed_links.map((u) => `<code>${esc(u)}</code>`).join(", ")}</div>`);
+    h += blk("agent", turn.blocked ? "Reply (canned)" : "Agent reply", `t${i}-reply`, `<div class="md">${md(turn.reply)}</div>`);
+  });
+  if (t.expected) {
+    const e = t.expected;
+    h += `<details class="expect" id="expect"><summary>Expected outcome and grader checks (collapsed so it doesn't steer your read)</summary><div class="in">
+      ${e.error ? `<p><b>Run error:</b> ${esc(e.error)}</p>` : ""}
+      <p><b>${esc(e.evaluation === "human_judgment" ? "Human judgment" : "Objective")}:</b> ${esc(typeof e.criterion === "string" ? e.criterion : JSON.stringify(e.criterion))}</p>
+      ${(e.checks || []).map((c) => `<div class="ck"><span class="st ${c.status}">${esc(c.status)}</span><code>${esc(c.check)}</code><span class="d">${esc(c.detail || "")}</span></div>`).join("")}
+    </div></details>`;
+  }
+  $("#main").innerHTML = `<div class="cols"><div class="body" id="body">${h}</div><div class="margin" id="margin"></div></div>`;
+  $("#main").scrollTop = 0;
+  $("#sys").addEventListener("toggle", loadPrompt, {once: true});
+  document.querySelectorAll("#body details").forEach((d) => d.addEventListener("toggle", renderMargin));
+  renderHighlights(); renderMargin();
+}
+function blk(cls, role, id, inner, sub) {
+  return `<div class="blk ${cls}"><div class="role">${esc(role)}${sub ? `<span class="sub">${esc(sub)}</span>` : ""}</div><div class="blk-text" data-block="${id}">${inner}</div></div>`;
+}
+async function loadPrompt() {
+  const p = await api("/api/system_prompt");
+  const v = S.current.meta.prompt_version;
+  $("#sys pre").textContent = (v && v !== p.version ? `Showing the current prompt (${p.version}). This trace used ${v}; see git history for that version.\n\n` : "") + p.text;
+}
+
+// --- Highlights: character offsets within a block's text --------------------------------
+function textNodes(el) { const w = document.createTreeWalker(el, NodeFilter.SHOW_TEXT); const out = []; while (w.nextNode()) out.push(w.currentNode); return out; }
+function offsetIn(el, node, off) {
+  let n = 0;
+  for (const t of textNodes(el)) { if (t === node) return n + off; n += t.length; }
+  // node is an element: count text before its off-th child
+  const r = document.createRange(); r.setStart(el, 0); r.setEnd(node, off); return r.toString().length;
+}
+function wrap(el, start, end, make) {
+  let n = 0; const made = [];
+  for (const t of textNodes(el)) {
+    const len = t.length;  // measure before splitting: splitText shortens t
+    const a = Math.max(start, n), b = Math.min(end, n + len);
+    if (a < b) {
+      let node = t;
+      if (b - n < node.length) node.splitText(b - n);
+      if (a - n > 0) node = node.splitText(a - n);
+      const span = make(); node.parentNode.insertBefore(span, node); span.appendChild(node); made.push(span);
+    }
+    n += len;
+  }
+  return made;
+}
+function locate(el, a) {
+  const text = el.textContent;
+  if (text.slice(a.start, a.end) === a.quote) return [a.start, a.end];
+  const i = text.indexOf(a.quote);
+  return i >= 0 ? [i, i + a.quote.length] : null;
+}
+function renderHighlights() {
+  const body = $("#body"); if (!body) return;
+  body.querySelectorAll("span.hl, span.sg").forEach((s) => s.replaceWith(...s.childNodes));
+  body.normalize();
+  const items = [...annotationsFor(S.current.key).map((a) => ({...a, kind: "hl"})), ...suggestionsFor(S.current.key).map((s) => ({...s, kind: "sg"}))];
+  for (const a of items) {
+    const el = body.querySelector(`[data-block="${CSS.escape(a.block)}"]`);
+    if (!el) { a.missing = true; continue; }
+    const at = locate(el, a);
+    if (!at) { a.missing = true; continue; }
+    const spans = wrap(el, at[0], at[1], () => { const s = document.createElement("span"); s.className = a.kind; s.dataset.ref = a.id; return s; });
+    const d = el.closest("details"); if (d && !d.open) d.open = true;
+    spans.forEach((s) => { s.onmouseenter = () => linkHover(a.id, true); s.onmouseleave = () => linkHover(a.id, false); });
+  }
+}
+function linkHover(id, on) { document.querySelectorAll(`[data-ref="${CSS.escape(id)}"]`).forEach((n) => n.classList.toggle("hover", on)); }
+
+function renderMargin() {
+  const margin = $("#margin"); if (!margin || !S.current) return;
+  const key = S.current.key;
+  const notes = [...annotationsFor(key).map((a) => ({...a, kind: "a"})), ...suggestionsFor(key).map((s) => ({...s, kind: "s"}))];
+  margin.innerHTML = notes.map((n) => n.kind === "a" ? `
+    <div class="mnote" data-ref="${esc(n.id)}" data-id="${esc(n.id)}"><q>“${esc(n.quote)}”</q><div class="nt">${esc(n.note)}</div>
+      <div class="by"><span>${n.author === "accepted_suggestion" ? "accepted suggestion" : "you"} · ${esc(new Date(n.ts).toLocaleString([], {month: "short", day: "numeric", hour: "numeric", minute: "2-digit"}))}</span>
+      <span class="acts"><button data-act="edit">edit</button><button data-act="del">delete</button></span></div></div>` : `
+    <div class="mnote s" data-ref="${esc(n.id)}" data-id="${esc(n.id)}"><span class="tag">Suggestion</span><q>“${esc(n.quote)}”</q>
+      <div>${n.mode ? `Possible <b>${esc(n.mode)}</b>. ` : ""}${esc(n.note || "")}</div>
+      <div class="btns"><button class="btn ok" data-act="accept">Accept</button><button class="btn" data-act="dismiss">Dismiss</button></div></div>`).join("");
+  const mTop = margin.getBoundingClientRect().top; let last = -1e9;
+  const placed = [...margin.children].map((el) => {
+    const hl = $(`#body [data-ref="${CSS.escape(el.dataset.id)}"]`);
+    return {el, y: hl ? hl.getBoundingClientRect().top - mTop : 0};
+  }).sort((a, b) => a.y - b.y);
+  for (const p of placed) {
+    const top = Math.max(p.y, last + 8); p.el.style.top = top + "px"; last = top + p.el.offsetHeight;
+    p.el.onmouseenter = () => linkHover(p.el.dataset.id, true); p.el.onmouseleave = () => linkHover(p.el.dataset.id, false);
+  }
+  margin.style.minHeight = Math.max(0, last) + "px";
+}
+addEventListener("resize", () => renderMargin());
+addEventListener("hashchange", () => {
+  const key = decodeURIComponent(location.hash.slice(1));
+  if (key && (!S.current || S.current.key !== key)) openFromAnywhere(key);
+});
+
+$("#main").addEventListener("click", async (e) => {
+  const btn = e.target.closest("[data-act]"); if (!btn) return;
+  const note = btn.closest(".mnote"), id = note.dataset.id;
+  try {
+    if (btn.dataset.act === "del") { if (confirm("Delete this note?")) { await api("/api/annotations", {op: "delete", id}); await afterChange(); } }
+    else if (btn.dataset.act === "edit") {
+      const a = S.review.annotations.find((x) => x.id === id);
+      note.querySelector(".nt").innerHTML = `<textarea rows="3">${esc(a.note)}</textarea><div class="small">Enter to save · Esc to cancel</div>`;
+      const ta = note.querySelector("textarea"); ta.focus();
+      ta.onkeydown = async (ev) => {
+        if (ev.key === "Escape") { renderMargin(); }
+        if (ev.key === "Enter" && !ev.shiftKey) { ev.preventDefault(); if (ta.value.trim()) { await api("/api/annotations", {op: "update", id, note: ta.value}); } await afterChange(); }
+      };
+    }
+    else if (btn.dataset.act === "accept" || btn.dataset.act === "dismiss") { await api("/api/suggestions", {op: btn.dataset.act, id}); await afterChange(); }
+  } catch (err) { toast("Not saved: " + err.message); }
+});
+async function afterChange() { await loadState(); refresh(); }
+
+// --- New note popover -----------------------------------------------------------------------
+let pending = null;
+function closePop() {
+  document.querySelector(".pop")?.remove();
+  if (pending) { pending.spans.forEach((s) => s.replaceWith(...s.childNodes)); pending.el.normalize(); pending = null; }
+}
+$("#main").addEventListener("mouseup", (e) => {
+  if (e.target.closest(".pop,.mnote,summary,a,.role")) return;
+  const sel = getSelection();
+  if (!sel || sel.isCollapsed || !sel.rangeCount) return;
+  const range = sel.getRangeAt(0);
+  const startEl = (range.startContainer.nodeType === 1 ? range.startContainer : range.startContainer.parentElement).closest(".blk-text");
+  const endEl = (range.endContainer.nodeType === 1 ? range.endContainer : range.endContainer.parentElement).closest(".blk-text");
+  if (!startEl || startEl !== endEl) { if (startEl || endEl) toast("Select text within one block."); return; }
+  const start = offsetIn(startEl, range.startContainer, range.startOffset), end = offsetIn(startEl, range.endContainer, range.endOffset);
+  const quote = startEl.textContent.slice(start, end);
+  if (!quote.trim()) return;
+  closePop();
+  sel.removeAllRanges();
+  const spans = wrap(startEl, start, end, () => { const s = document.createElement("span"); s.className = "pend"; return s; });
+  pending = {el: startEl, spans};
+  const main = $("#main"), r = spans[spans.length - 1].getBoundingClientRect(), mr = main.getBoundingClientRect();
+  const pop = document.createElement("div"); pop.className = "pop";
+  pop.style.top = (r.bottom - mr.top + main.scrollTop + 6) + "px";
+  pop.style.left = Math.max(8, Math.min(r.left - mr.left, mr.width - 340)) + "px";
+  pop.innerHTML = `<textarea rows="2" placeholder="What went wrong here? (your own words)"></textarea><div class="hint">Enter to save · Shift+Enter for a new line · Esc to cancel</div>`;
+  main.appendChild(pop);
+  const ta = pop.querySelector("textarea"); ta.focus();
+  ta.onkeydown = async (ev) => {
+    if (ev.key === "Escape") return closePop();
+    if (ev.key !== "Enter" || ev.shiftKey) return;
+    ev.preventDefault();
+    const note = ta.value.trim(); if (!note) return;
+    const block = startEl.dataset.block, key = S.current.key;
+    try {
+      await api("/api/annotations", {op: "add", trace_key: key, block, start, end, quote, note});
+      closePop(); await afterChange();
+    } catch (err) { toast("Not saved: " + err.message); }
+  };
+});
+document.addEventListener("mousedown", (e) => { if (pending && !e.target.closest(".pop")) closePop(); });
+
+// --- Failure modes view -------------------------------------------------------------------
+function traceLink(key) {
+  const [src, ...rest] = key.split("::"); const id = rest.join("::");
+  return `<a data-open="${esc(key)}" title="${esc(src)}">${esc(src.startsWith("run:") ? id : id.slice(0, 10))}</a>`;
+}
+function renderModes() {
+  const {modes, annotations, suggestions, labels} = S.review;
+  const inMode = (a, m) => (m.created_from || []).includes(a.id) || a.mode === m.name;
+  const unsorted = annotations.filter((a) => !modes.some((m) => inMode(a, m)));
+  const max = Math.max(1, ...modes.map((m) => annotations.filter((a) => inMode(a, m)).length + labels.filter((l) => l.mode === m.name && l.value === 1).length));
+  let h = `<h2>Failure modes</h2><p class="lead">Grouped from your notes. Rename, merge, split or reject any of them by telling Claude; every mode must come from at least one of your notes.</p>`;
+  h += modes.length ? modes.map((m) => {
+    const notes = annotations.filter((a) => inMode(a, m));
+    const present = labels.filter((l) => l.mode === m.name && l.value === 1).length;
+    const pend = suggestions.filter((s) => s.mode === m.name).length;
+    return `<div class="mode"><h3>${esc(m.name)} <span class="pill">${esc(m.status || "candidate")}</span>${m.evaluator_type ? `<span class="pill">${esc(m.evaluator_type)}</span>` : ""}${m.requirement_source ? `<span class="pill">${esc(m.requirement_source)}</span>` : ""}</h3>
+      <div class="def">${esc(m.definition || "")}</div>
+      <div class="small">${notes.length} note(s) · ${present} labeled present · ${pend} suggestion(s) pending</div>
+      <div class="bar"><i style="width:${Math.round(100 * (notes.length + present) / max)}%"></i></div>
+      ${notes.map((a) => `<div class="ex">${traceLink(a.trace_key)}<span>${esc(a.note)}</span></div>`).join("")}</div>`;
+  }).join("") : `<p class="small">No modes yet. Write notes on traces, then ask Claude to group them.</p>`;
+  h += `<h2>Notes not yet grouped · ${unsorted.length}</h2>` + (unsorted.length ? `<div class="mode">${unsorted.map((a) => `<div class="ex">${traceLink(a.trace_key)}<span>${esc(a.note)}</span></div>`).join("")}</div>` : `<p class="small">None.</p>`);
+  h += `<h2>Pending suggestions · ${suggestions.length}</h2>` + (suggestions.length ? suggestions.map((s) => `
+    <div class="mode" data-id="${esc(s.id)}"><div class="ex" style="border:0">${traceLink(s.trace_key)}<span><b>${esc(s.mode || "")}</b> · “${esc(s.quote)}” ${esc(s.note || "")}</span></div>
+      <div class="btns"><button class="btn ok" data-sugg="accept">Accept</button><button class="btn" data-sugg="dismiss">Dismiss</button></div></div>`).join("") : `<p class="small">None.</p>`);
+  $("#modes").innerHTML = h;
+}
+async function openFromAnywhere(key) {
+  const src = key.split("::")[0];
+  if (src !== S.source) { S.source = src; $("#source").value = src; store.set("tv-source", src); await loadTraces(); }
+  setView("traces"); openTrace(key);
+}
+document.addEventListener("click", async (e) => {
+  const a = e.target.closest("[data-open]"); if (a) { e.preventDefault(); return openFromAnywhere(a.dataset.open); }
+  const b = e.target.closest("[data-sugg]");
+  if (b) { try { await api("/api/suggestions", {op: b.dataset.sugg, id: b.closest("[data-id]").dataset.id}); await afterChange(); } catch (err) { toast("Not saved: " + err.message); } }
+});
+
+// --- Labeling view --------------------------------------------------------------------------
+function renderLabels() {
+  const modes = S.review.modes.filter((m) => m.status !== "rejected");
+  const keys = [...new Set([...S.review.annotations.map((a) => a.trace_key), ...S.review.labels.map((l) => l.trace_key)])].sort();
+  let h = `<h2>Labeling</h2><p class="lead">One row per reviewed trace, all sources. Mark each failure mode present or absent; highlighted cells still need a decision. Every change is kept in analysis/state/labels/.</p>`;
+  if (!modes.length) { $("#labels").innerHTML = h + `<p class="small">No failure modes yet.</p>`; return; }
+  const cur = (k, m) => S.review.labels.find((l) => l.trace_key === k && l.mode === m);
+  const missing = keys.reduce((n, k) => n + modes.filter((m) => !cur(k, m.name)).length, 0);
+  h += `<p class="small">${keys.length} traces × ${modes.length} modes · ${missing} decisions missing</p>`;
+  h += `<div style="overflow:auto"><table><tr><th>trace</th>${modes.map((m) => `<th title="${esc(m.definition)}">${esc(m.name)}</th>`).join("")}<th>evidence note (saved with your next change in this row)</th></tr>` +
+    keys.map((k) => `<tr data-key="${esc(k)}"><td>${traceLink(k)}</td>${modes.map((m) => {
+      const l = cur(k, m.name), v = l ? String(l.value) : "";
+      return `<td class="${l ? "" : "missing"}"><select data-mode="${esc(m.name)}" title="${esc(l?.note || "")}"><option value="" ${v === "" ? "selected" : ""}>—</option><option value="1" ${v === "1" ? "selected" : ""}>present</option><option value="0" ${v === "0" ? "selected" : ""}>absent</option></select></td>`;
+    }).join("")}<td><input placeholder="optional"></td></tr>`).join("") + `</table></div>`;
+  $("#labels").innerHTML = h;
+}
+$("#labels").addEventListener("change", async (e) => {
+  const s = e.target.closest("select[data-mode]"); if (!s) return;
+  const row = s.closest("tr");
+  try {
+    await api("/api/labels", {trace_key: row.dataset.key, mode: s.dataset.mode, value: s.value === "" ? null : Number(s.value), note: row.querySelector("input").value});
+    await afterChange();
+  } catch (err) { toast("Not saved: " + err.message); }
+});
+
+// --- Views and start -----------------------------------------------------------------------
+function setView(v) {
+  S.view = v;
+  document.querySelectorAll(".tabs button").forEach((b) => b.classList.toggle("on", b.dataset.view === v));
+  document.querySelectorAll(".view").forEach((el) => el.classList.toggle("on", el.id === "v-" + v));
+  $("#help").style.display = v === "traces" ? "" : "none";
+  if (v === "modes") renderModes();
+  if (v === "labels") renderLabels();
+  if (v === "traces") renderMargin();
+}
+document.querySelectorAll(".tabs button").forEach((b) => b.onclick = () => setView(b.dataset.view));
+$("#source").onchange = async (e) => { S.source = e.target.value; store.set("tv-source", S.source); S.current = null; history.replaceState(null, "", "#"); await loadTraces(); };
+
+(async () => {
+  try { await loadState(); } catch { S.review = store.get("tv-review-backup", S.review); toast("Server unreachable; showing the last saved review state."); }
+  await loadSources(); await loadTraces();
+  setInterval(poll, 3000);
+})();
+</script>
+</body>
+</html>

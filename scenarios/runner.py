@@ -70,7 +70,7 @@ def run_one(scenario: dict, traces_root: str, client_factory=None) -> dict:
             break
         turns.append({"user": message, "reply": r.reply, "blocked": r.blocked, "model": r.model,
                       "stop_reason": r.stop_reason, "model_calls": r.model_calls, "cost_usd": round(r.cost_usd, 6),
-                      "removed_links": r.removed_links,
+                      "removed_links": r.removed_links, "steps": r.steps,
                       "tool_calls": [{"name": c["name"], "input": c["input"],
                                       "ok": c["result"].get("ok"), "error": c["result"].get("error")}
                                      for c in r.tool_calls]})

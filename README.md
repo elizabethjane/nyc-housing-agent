@@ -47,6 +47,28 @@ This needs `NYCHA_ADMIN_TOKEN` in `.env`: the `ADMIN_TOKEN` value from the Rende
 Environment settings. The files hold what visitors typed, so keep them on this machine and delete
 them after review.
 
+## Review traces
+
+A local viewer for reading traces and writing notes on them (cartwheel's error-analysis method):
+
+```sh
+uv run python -m analysis.server       # http://127.0.0.1:8020
+```
+
+Pick a source at the top right: an eval run (`runs/<name>/`), live-site traces pulled with
+`scripts/pull_traces.py`, or traces from local testing (`data/traces/`).
+
+- **Traces**: read a whole conversation (user, thinking, tool calls with results, guards, reply).
+  Select the text where the first failure shows, type a short note in your own words, press Enter.
+  Expected outcomes and grader checks are folded at the bottom so they don't steer your read.
+- **Failure modes**: Claude groups your notes into modes in `analysis/state/patterns.json` and
+  may suggest more instances; you accept or dismiss each one.
+- **Labeling**: once the modes settle, mark each mode present or absent on every reviewed trace.
+
+Review state is kept in `analysis/state/` (ignored by git, since notes quote traces). The viewer
+listens on 127.0.0.1 only and is never deployed. Traces saved before 2026-11-12 show tool calls
+without the agent's text or thinking between them.
+
 ## Layout
 
 | Path | What it is |
@@ -58,6 +80,7 @@ them after review.
 | `agent/sources.py`, `agent/db.py`, `agent/trace.py` | Source search, the SQLite database, local traces (30-day retention). |
 | `sync/lotteries.py` | The lottery sync job (API, backup, or fixture). |
 | `sources/`, `scenarios/` | Source snapshots and validation; eval scenarios. |
+| `analysis/` | The local trace viewer and its review state. |
 
 ## Commands
 
