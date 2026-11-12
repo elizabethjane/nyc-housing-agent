@@ -13,9 +13,38 @@
   --notice-ink: #3d3420;
   --soon-bg: #fdebd3;
   --soon-ink: #7a3e00;
+  --on-accent: #ffffff;
+  --danger: #9b1c1c;
+  --code-bg: #e9edeb;
+  color-scheme: light dark;
   --font: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
   --display: "Space Grotesk", Inter, system-ui, sans-serif;
   --max: 820px;
+}
+
+/* Dark mode follows the visitor's system setting. The accent is lightened so
+   links and the logo keep at least 4.5:1 contrast on the dark background, and
+   text on accent fills switches to dark ink. */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #111418;
+    --surface: #1b2026;
+    --ink: #e7ebe9;
+    --muted: #a9b3ae;
+    --border: #2e353c;
+    --field: #4a535b;
+    --accent: #8fb0ff;
+    --accent-dark: #b9ceff;
+    --accent-soft: #1f2a44;
+    --notice-bg: #2b2414;
+    --notice-border: #4a3f22;
+    --notice-ink: #f0e2bd;
+    --soon-bg: #3a2610;
+    --soon-ink: #ffcf99;
+    --on-accent: #0d1530;
+    --danger: #ff8a8a;
+    --code-bg: #232a31;
+  }
 }
 
 * { box-sizing: border-box; }
@@ -69,7 +98,7 @@ body:not(.empty) .welcome { display: none; }
 /* Messages */
 .messages { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 18px; }
 .msg-user { align-self: flex-end; max-width: min(520px, 85%); padding: 10px 14px; border-radius: 18px 18px 4px 18px;
-  background: var(--accent); color: #fff; white-space: pre-wrap; overflow-wrap: anywhere; }
+  background: var(--accent); color: var(--on-accent); white-space: pre-wrap; overflow-wrap: anywhere; }
 .msg-agent { display: flex; flex-direction: column; gap: 6px; overflow-wrap: anywhere; }
 .msg-agent .body > :first-child { margin-top: 0; }
 .msg-agent .body > :last-child { margin-bottom: 0; }
@@ -100,11 +129,11 @@ body:not(.empty) .welcome { display: none; }
 textarea { flex: 1; font: inherit; resize: none; padding: 11px 14px; border: 1px solid var(--field); border-radius: 22px;
   min-height: 44px; max-height: 180px; color: var(--ink); background: var(--bg); }
 textarea:focus-visible, button:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-#send { width: 44px; height: 44px; flex-shrink: 0; border: 0; border-radius: 22px; background: var(--accent); color: #fff;
+#send { width: 44px; height: 44px; flex-shrink: 0; border: 0; border-radius: 22px; background: var(--accent); color: var(--on-accent);
   display: flex; align-items: center; justify-content: center; cursor: pointer; }
 #send:disabled { background: var(--field); cursor: not-allowed; }
 .composer-meta { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; font-size: 12px; color: var(--muted); padding: 0 52px 0 4px; }
-.composer-meta .over { color: #9b1c1c; font-weight: 600; }
+.composer-meta .over { color: var(--danger); font-weight: 600; }
 
 /* Plain content pages */
 .page { max-width: 720px; }
@@ -125,3 +154,4 @@ textarea:focus-visible, button:focus-visible, a:focus-visible { outline: 2px sol
   body { font-size: 16px; }
   main { padding-top: 32px; }
 }
+.msg-agent .body code { background: var(--code-bg); padding: 1px 4px; border-radius: 4px; }

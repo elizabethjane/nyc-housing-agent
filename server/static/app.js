@@ -36,7 +36,7 @@
         sitekey: s.turnstile_site_key,
         appearance: "interaction-only",
         size: "flexible",
-        theme: "light",
+        theme: "auto",  // follows the system light/dark setting
         callback: setToken,
         "expired-callback": () => setToken(null),
         "before-interactive-callback": () => { botBox.hidden = false; },

@@ -1,4 +1,5 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="#1E3A8A" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="#1E3A8A" class="ink" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+  <style>.ink { stroke: #1E3A8A } @media (prefers-color-scheme: dark) { .ink { stroke: #8FB0FF } }</style>
   <path d="M3 29h26"/>
   <path d="M8 29V8h16v21"/>
   <path d="M6.5 8h19M7 5.5h18v2.5"/>
