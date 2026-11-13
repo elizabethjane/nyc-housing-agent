@@ -149,6 +149,16 @@ def validate(rows: list[dict]) -> list[str]:
                         errors.append(f"{label}: check lists {c['lottery_ids']}, fixture gives {got}")
                     if c["check"] == "reply_excludes_lotteries" and set(c["lottery_ids"]) & set(got):
                         errors.append(f"{label}: excludes eligible lotteries {sorted(set(c['lottery_ids']) & set(got))}")
+                gap = lottery_answers.income_gap(fixture, query["borough"], query["household_size"], query["income"])
+                gap_checks = [c for c in checks if c["check"] == "reply_mentions_gap_lotteries"]
+                if gap and not gap_checks:
+                    errors.append(f"{label}: fixture has income-gap lotteries {gap} but no reply_mentions_gap_lotteries check (RESP-5)")
+                for c in gap_checks:
+                    if c["lottery_ids"] != gap:
+                        errors.append(f"{label}: gap check lists {c['lottery_ids']}, fixture gives {gap}")
+                for c in checks:
+                    if c["check"] == "reply_states_data_date" and c["date"] != row["as_of"]:
+                        errors.append(f"{label}: data date {c['date']} differs from as_of {row['as_of']}")
                 # The labeled lottery situation must match the data.
                 situation = t.get("lottery_situation")
                 if situation == "no_matches" and got:

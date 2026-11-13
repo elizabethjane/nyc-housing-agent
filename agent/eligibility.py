@@ -48,7 +48,12 @@ def income_rows(conn: sqlite3.Connection, lottery_id: int) -> list[dict]:
 
 
 def assess(conn: sqlite3.Connection, lottery: dict, household_size: int, income: float) -> dict:
-    """Eligibility for one lottery: eligible (with units), below_minimum, not_eligible, or unknown."""
+    """Eligibility for one lottery: eligible (with units), below_minimum, income_gap, not_eligible, or unknown.
+
+    income_gap: the income is inside the lottery's overall range for the household size (lowest
+    minimum to highest maximum), which is what Housing Connect's search compares, but outside
+    every unit's range (RESP-5).
+    """
     if not lottery["has_income_table"]:
         return {"eligibility": "unknown", "units": []}
     rows = [r for r in income_rows(conn, lottery["lottery_id"]) if r["household_size"] == household_size]
@@ -62,4 +67,10 @@ def assess(conn: sqlite3.Connection, lottery: dict, household_size: int, income:
         return {"eligibility": "below_minimum", "units": [], "lowest_minimum_income": lowest["income_min"],
                 "note": ("Income is below this lottery's minimum for the household size. The minimum may not "
                          "apply to applicants with Section 8 or another rental subsidy.")}
+    if rows and min(r["income_min"] for r in rows) <= income <= max(r["income_max"] for r in rows):
+        return {"eligibility": "income_gap", "units": [], "ranges": [
+            {k: r[k] for k in ("unit_size", "tier", "income_min", "income_max")}
+            for r in sorted(rows, key=lambda r: (r["income_min"], r["income_max"]))],
+                "note": ("Housing Connect's search may list this lottery, but no unit's income range includes this "
+                         "income for this household size.")}
     return {"eligibility": "not_eligible", "units": []}

@@ -18,9 +18,13 @@ def turns(*replies):
 
 def test_a_correct_lottery_answer_passes():
     reply = (f"Two open lotteries fit:\n- [292 East 51st Street]({D}7650), closes Nov 16\n"
-             f"- [Kingsland Commons Building 2]({D}7718), closes Nov 25\n"
-             f"Based on Housing Connect data as of November 10, 2026. [All open lotteries]({OPEN})")
+             f"- [Kingsland Commons Building 2]({D}7718), closes Nov 25\n\n"
+             f"Housing Connect's search may also show [1058 Pacific Street]({D}7626) and "
+             f"[904 East 98th Street]({D}7690), but no unit there has an income range that includes $65,000.\n"
+             f"Based on Housing Connect data as of November 13, 2026. [All open lotteries]({OPEN})")
     assert grade.grade(SCENARIOS["pilot-001"], turns(reply))["status"] == "pass"
+    leaves_out_gap = reply.replace("Housing Connect's search may also show", "Also:").split("Also:")[0]
+    assert grade.grade(SCENARIOS["pilot-001"], turns(leaves_out_gap + "As of November 13, 2026."))["status"] == "fail"
 
 
 def test_wrong_order_or_an_extra_lottery_fails():
@@ -74,7 +78,8 @@ def test_run_one_with_a_scripted_model(monkeypatch, tmp_path):
     _world_env(monkeypatch, tmp_path)
     s = SCENARIOS["pilot-001"]
     answer = text(f"[292 East 51st Street]({D}7650) and [Kingsland Commons]({D}7718), "
-                  f"data as of November 10, 2026. [More]({OPEN})")
+                  f"data as of November 13, 2026. [More]({OPEN})\n\nHousing Connect may also list "
+                  f"[1058 Pacific]({D}7626) and [904 E 98th]({D}7690), but no unit fits your income.")
     factory = lambda: FakeClient(tool_call("search_lotteries", {"borough": "Brooklyn", "household_size": 2,  # noqa: E731
                                                                   "annual_income": 65000}), answer)
     record = runner.run_one(s, str(tmp_path / "traces"), factory)
@@ -114,3 +119,29 @@ def test_summary_reports_groups_and_failures():
                 "checks": [{"check": "reply_links", "status": "fail", "detail": "missing links"}]}]
     md = runner.summarize(records)
     assert "| coverage | 1 | 0 | 0 | 0 |" in md and "**b** (challenge): reply_links: missing links" in md
+
+
+D_ = "https://housingconnect.nyc.gov/PublicWeb/details/"
+
+
+@pytest.mark.parametrize("reply, matched", [
+    # a lottery linked under a "below the minimum" heading is not a match
+    (f"You match:\n- [A]({D_}1)\n- [B]({D_}2)\n\n**Below the minimum income:**\n- [C]({D_}3), $70,000 minimum", [1, 2]),
+    # inline wording on the link's own line
+    (f"Two fit: [A]({D_}1) and [B]({D_}2). [C]({D_}3) closes today but has a $65,418 minimum income.", [1, 2]),
+    # income-gap wording
+    (f"Matches: [A]({D_}1)\n\nHousing Connect's search may also show [G]({D_}4) and [H]({D_}5), but no unit there fits.", [1]),
+    # a match whose name contains a trigger word still counts
+    (f"- [No Unit Left Behind Apartments]({D_}6), closes Nov 20", [6]),
+])
+def test_matched_lotteries_skip_not_a_match_mentions(reply, matched):
+    assert grade._matched_lottery_ids(reply) == matched
+
+
+def test_gap_lotteries_must_be_named_and_not_listed():
+    c = {"check": "reply_mentions_gap_lotteries", "lottery_ids": [4]}
+    ok = f"Matches: [A]({D_}1)\n\nHousing Connect may also list [G]({D_}4), but no unit's range includes your income."
+    assert grade.check(c, [ok], turns(ok))[0] == "pass"
+    assert grade.check(c, ["Matches: none"], turns(""))[0] == "fail"
+    bad = f"You match [A]({D_}1) and [G]({D_}4)."
+    assert grade.check(c, [bad], turns(bad))[0] == "fail"

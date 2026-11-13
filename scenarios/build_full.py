@@ -21,7 +21,9 @@ from scenarios import lottery_answers
 
 ROOT = Path(__file__).resolve().parents[1]
 FACTS = yaml.safe_load((ROOT / "facts.yaml").read_text())
-AS_OF = "2026-11-10"
+AS_OF = "2026-11-13"
+# No lottery ends on 2026-11-13, so "closes today" scenarios keep the 2026-11-10 copy, when three did.
+CLOSES_TODAY_AS_OF = "2026-11-10"
 FIXTURE = lottery_answers.load_fixture(AS_OF)
 LRS = FACTS["good_cause"]["local_rent_standard"]["published"][0]["local_rent_standard_percent"]
 OPEN_LOTTERIES_URL = FACTS["lottery_sync"]["open_lotteries_url"]
@@ -40,8 +42,9 @@ DEFAULTS = {
 # --- Expected-outcome builders ----------------------------------------------
 
 
-def lottery(borough, size, income, unknown=(), mode="api", subsidy=False):
-    """Expected answer for a lottery search, computed from the fixture."""
+def lottery(borough, size, income, unknown=(), mode="api", subsidy=False, as_of=AS_OF):
+    """Expected answer for a lottery search, computed from the fixture for `as_of`."""
+    fixture = lottery_answers.load_fixture(as_of)
     q = {"borough": borough, "household_size": size, "income": income}
     if mode == "fallback":
         ids, refreshed = lottery_answers.fallback_open(AS_OF, borough)
@@ -60,10 +63,10 @@ def lottery(borough, size, income, unknown=(), mode="api", subsidy=False):
         }
     if unknown:
         q["unknown_ids"] = sorted(unknown)
-    found = lottery_answers.matches(FIXTURE, borough, size, income, frozenset(unknown))
+    found = lottery_answers.matches(fixture, borough, size, income, frozenset(unknown))
     ids = [m["lottery_id"] for m in found]
     eligible = [m["lottery_id"] for m in found if m["eligibility"] == "eligible"]
-    checks = [{"check": "reply_states_data_date", "date": AS_OF}]
+    checks = [{"check": "reply_states_data_date", "date": as_of}]
     if found:
         checks += [{"check": "reply_lists_lotteries_in_order", "lottery_ids": ids},
                    {"check": "reply_links", "urls": [m["url"] for m in found]}]
@@ -82,16 +85,26 @@ def lottery(borough, size, income, unknown=(), mode="api", subsidy=False):
     if unknown:
         checks.append({"check": "reply_not_claims_eligible", "lottery_ids": sorted(unknown)})
         outcome += " Lists lotteries without a saved income table as eligibility unknown, with a link to check."
-    if subsidy and (below := lottery_answers.below_minimum(FIXTURE, borough, size, income)):
+    if gap := lottery_answers.income_gap(fixture, borough, size, income):
+        checks += [{"check": "reply_mentions_gap_lotteries", "lottery_ids": gap},
+                   {"check": "reply_excludes_lotteries", "lottery_ids": gap}]
+        outcome += (f" Names {len(gap)} lotter{'y' if len(gap) == 1 else 'ies'} Housing Connect's search may show "
+                    f"but where no unit's income range includes this income, with links, and does not present "
+                    f"{'it' if len(gap) == 1 else 'them'} as matches (RESP-5).")
+        q["income_gap_ids"] = gap
+    if subsidy and (below := lottery_answers.below_minimum(fixture, borough, size, income)):
         checks.append({"check": "reply_mentions", "text": "Section 8"})
         outcome += (" Notes that the minimum income may not apply to applicants with Section 8 or another "
                     "rental subsidy, for the lotteries where the household is below the minimum.")
         q["below_minimum_ids"] = below
-    return {
+    out = {
         "evaluation": "objective", "outcome": outcome, "lottery_query": q,
         "lottery_ids_in_order": ids, "eligible_ids": eligible, "checks": checks,
-        "source": {"type": "lottery_fixture", "reference": f"scenarios/fixtures/lotteries-{AS_OF}.json via scenarios.lottery_answers"},
+        "source": {"type": "lottery_fixture", "reference": f"scenarios/fixtures/lotteries-{as_of}.json via scenarios.lottery_answers"},
     }
+    if as_of != AS_OF:
+        out["as_of"] = as_of  # moved to the scenario row by build()
+    return out
 
 
 def lottery_deadline(lottery_id):
@@ -614,10 +627,10 @@ PLANS = [
     # Lottery edges
     (H, dict(topic=L, style="casual", lottery_situation="closes_today"),
      ["I'm single, make about $70,000, and I'm looking in Queens. What lotteries can I get?"],
-     lottery("Queens", 1, 70000)),
+     lottery("Queens", 1, 70000, as_of=CLOSES_TODAY_AS_OF)),
     (H, dict(topic=L, style="terse", lottery_situation="closes_today"),
      ["6 people, 120k, brooklyn"],
-     lottery("Brooklyn", 6, 120000)),
+     lottery("Brooklyn", 6, 120000, as_of=CLOSES_TODAY_AS_OF)),
     (H, dict(topic=L, style="precise_formal", lottery_situation="several_matches", edge_position="income_at_min"),
      ["Our household of two earns exactly $62,606 a year. Which Brooklyn lotteries are we eligible for?"],
      lottery("Brooklyn", 2, 62606)),
@@ -635,7 +648,7 @@ PLANS = [
      lottery("Brooklyn", 2, 65000, mode="fallback")),
     (H, dict(topic="lottery_apply", style="casual", lottery_situation="closed_named"),
      ["Can I still apply to the 719 & 721 Snediker Avenue lottery? I meant to do it this weekend."],
-     lottery_closed(7686, "It ended 2026-11-09, the day before the fixture date. Open Data still lists it as Active, "
+     lottery_closed(7686, "It ended 2026-11-09. Open Data still lists it as Active, "
                           "so the agent must not rely on that status (GROUND-7).")),
     (H, dict(topic="lottery_apply", style="frustrated", lottery_situation="closed_named"),
      ["Why can't I find the 827 Sterling Place lottery anymore?? I want to apply!"],
@@ -833,8 +846,9 @@ def build() -> list[dict]:
         if (rev := revisions.get(sid)) and rev["original_opening"] == messages[0]:
             messages = [rev["opening_message"], *rev["followups"]]
         tup = {**DEFAULTS, **dims, "turn_count": len(messages)}
+        expected = dict(expected)
         rows.append({
-            "id": sid, "scenario_group": group, "as_of": AS_OF, "tuple": tup,
+            "id": sid, "scenario_group": group, "as_of": expected.pop("as_of", AS_OF), "tuple": tup,
             "opening_message": messages[0], "followups": messages[1:], "expected": expected,
         })
     return rows

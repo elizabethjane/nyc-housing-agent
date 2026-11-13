@@ -136,7 +136,7 @@ def load_traces(source: str, root: Path = ROOT) -> list[dict]:
                 "group": r.get("scenario_group"), "tuple": r.get("tuple", {}),
                 "title": turns[0]["user"] if turns else "",
                 "meta": _meta(turns, model=r.get("model"), prompt_version=r.get("prompt_version"),
-                              seconds=r.get("seconds"), at=r.get("run_at")),
+                              seconds=r.get("seconds"), at=r.get("run_at"), as_of=r.get("as_of")),
                 "expected": {"evaluation": r.get("evaluation"), "criterion": r.get("criterion"),
                              "checks": r.get("checks", []), "error": r.get("error")},
                 "turns": turns})

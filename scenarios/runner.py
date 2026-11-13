@@ -75,6 +75,7 @@ def run_one(scenario: dict, traces_root: str, client_factory=None) -> dict:
                                       "ok": c["result"].get("ok"), "error": c["result"].get("error")}
                                      for c in r.tool_calls]})
     record = {"id": scenario["id"], "scenario_group": scenario["scenario_group"], "tuple": scenario["tuple"],
+              "as_of": scenario["as_of"],
               "evaluation": scenario["expected"]["evaluation"],
               "criterion": scenario["expected"].get("criterion") or scenario["expected"].get("outcome"),
               "prompt_version": agent.prompt_version(), "model": next((t["model"] for t in turns if t["model"]), None),

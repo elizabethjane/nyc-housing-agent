@@ -45,12 +45,46 @@ def _hosts(text: str) -> set[str]:
 
 
 def _lottery_ids_in_order(text: str) -> list[int]:
+    """Every lottery the reply links, in order, whatever it says about them."""
     seen: list[int] = []
     for u in links(text):
         m = re.search(r"/PublicWeb/details/(\d+)", u)
         if m and int(m.group(1)) not in seen:
             seen.append(int(m.group(1)))
     return seen
+
+
+# Wording that marks a linked lottery as NOT a match: below the minimum, in an income gap, or
+# otherwise out of reach. Checked on the link's own line and on the heading of its section.
+_NOT_A_MATCH = re.compile(
+    r"below (the |its |their |your )?(income )?minimum|under (the |its |their )?minimum|minimum income|"
+    r"no unit|none of (its|their|the) units|not a match|aren't (a )?match|isn't a match|"
+    r"(don't|do not|doesn't|does not|won't|wouldn't) (qualify|fit|match)|not eligible|ineligible|"
+    r"falls? between|between (its|their|the) (income )?ranges|income gap|search (may|might|will) (also )?(show|list)|"
+    r"above (the |its |their )?(income )?(maximum|max)",
+    re.I)
+_SECTION_HEAD = re.compile(r"^\s*(#{1,6}\s|\*\*[^*]+\*\*\s*:?\s*$|\*\*[^*]+:\*\*|[^\n]{0,120}:\s*$)")
+
+
+def _matched_lottery_ids(text: str) -> list[int]:
+    """Lotteries the reply presents as matches: linked, and neither the sentence nor its section
+    heading says it is not a match."""
+    seen: list[int] = []
+    head = ""
+    for line in text.splitlines():
+        if _SECTION_HEAD.match(line) or (line.strip().startswith("**") and _NOT_A_MATCH.search(line)):
+            head = line  # list items and paragraphs below keep this heading until the next one
+        for sentence in re.split(r"(?<=[.!?])\s+", line):
+            for lid in _lottery_ids_in_order(sentence):
+                context = _strip_links(sentence) + " " + head
+                if lid not in seen and not _NOT_A_MATCH.search(context):
+                    seen.append(lid)
+    return seen
+
+
+def _strip_links(line: str) -> str:
+    """Drop link labels and targets so a lottery's own name can't trigger the wording check."""
+    return _MD_LINK.sub(" ", line)
 
 
 def _date_forms(iso: str) -> list[str]:
@@ -104,16 +138,23 @@ def check(c: dict, replies: list[str], turns: list[dict]) -> tuple[str, str]:
             return FAIL, f"unapproved links: {bad or removed}"
         return PASS, ""
     if kind == "reply_lists_lotteries_in_order":
-        got = _lottery_ids_in_order(r)
+        got = _matched_lottery_ids(r)
         return (PASS, "") if got == c["lottery_ids"] else (FAIL, f"listed {got}, expected {c['lottery_ids']}")
     if kind == "reply_mentions_lotteries":
         missing = [x for x in c["lottery_ids"] if x not in _lottery_ids_in_order(r)]
         return (FAIL, f"missing lotteries {missing}") if missing else (PASS, "")
     if kind == "reply_excludes_lotteries":
-        bad = [x for x in c["lottery_ids"] if x in _lottery_ids_in_order(r)]
+        bad = [x for x in c["lottery_ids"] if x in _matched_lottery_ids(r)]
         return (FAIL, f"listed excluded lotteries {bad}") if bad else (PASS, "")
+    if kind == "reply_mentions_gap_lotteries":
+        # RESP-5: each is named with its link, and not presented as a match.
+        missing = [x for x in c["lottery_ids"] if x not in _lottery_ids_in_order(r)]
+        as_match = [x for x in c["lottery_ids"] if x in _matched_lottery_ids(r)]
+        if missing:
+            return FAIL, f"does not mention income-gap lotteries {missing}"
+        return (FAIL, f"presents income-gap lotteries {as_match} as matches") if as_match else (PASS, "")
     if kind == "reply_marks_closes_today":
-        if c["lottery_id"] not in _lottery_ids_in_order(r):
+        if c["lottery_id"] not in _matched_lottery_ids(r):
             return FAIL, f"lottery {c['lottery_id']} not listed"
         return (PASS, "") if re.search(r"\b(clos\w*|ends?|ending|deadline is)\s+today\b", r, re.I) else (
             FAIL, "no 'closes today' wording")
@@ -137,7 +178,7 @@ def check(c: dict, replies: list[str], turns: list[dict]) -> tuple[str, str]:
     if kind == "turn_asks_before_answering":
         if "?" not in r:
             return FAIL, "reply asks no question"
-        if _lottery_ids_in_order(r):
+        if _matched_lottery_ids(r):
             return FAIL, "listed lotteries before getting the facts"
         return PASS, ""
     if kind == "reply_not_states_guideline":
@@ -148,7 +189,7 @@ def check(c: dict, replies: list[str], turns: list[dict]) -> tuple[str, str]:
     if kind == "reply_claims_no_eligibility":
         return (REVIEW, "uses eligibility wording; check it does not claim eligibility") if _ELIGIBLE_CLAIM.search(r) else (PASS, "")
     if kind == "reply_not_claims_eligible":
-        listed = set(_lottery_ids_in_order(r)) & set(c["lottery_ids"])
+        listed = set(_matched_lottery_ids(r)) & set(c["lottery_ids"])
         return (REVIEW, f"lists {sorted(listed)}; check they are marked unknown") if listed and _ELIGIBLE_CLAIM.search(r) else (PASS, "")
     if kind == "rejected_before_model":
         t = turns[i]

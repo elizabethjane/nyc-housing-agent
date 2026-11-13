@@ -141,6 +141,25 @@ def below_minimum(fixture: dict, borough: str, household_size: int, income: floa
     return sorted(out)
 
 
+def income_gap(fixture: dict, borough: str, household_size: int, income: float) -> list[int]:
+    """Open lotteries Housing Connect's search would show but where no unit fits (SPEC.md RESP-5).
+
+    The income is between the lowest minimum and the highest maximum for the household size,
+    but inside no single unit's range.
+    """
+    today = date.fromisoformat(fixture["as_of"])
+    out = []
+    for lot in fixture["lotteries"]:
+        if borough.lower() not in {b.lower() for b in boroughs(lot)} or not is_open(lot, today):
+            continue
+        rows = [r for r in income_rows(lot["income_table"]) if r["household_size"] == household_size]
+        inside_overall = rows and min(r["income_min"] for r in rows) <= income <= max(r["income_max"] for r in rows)
+        if inside_overall and not any(r["income_min"] <= income <= r["income_max"] for r in rows):
+            end = lot["search"]["lotteryEndDate"][:10]
+            out.append((end, lot["search"]["lotteryId"]))
+    return [i for _, i in sorted(out)]
+
+
 def main(argv: list[str]) -> int:
     borough, size, income = argv[0], int(argv[1]), float(argv[2])
     as_of = argv[3] if len(argv) > 3 else max(p.stem.split("-", 1)[1] for p in FIXTURES.glob("lotteries-*.json"))

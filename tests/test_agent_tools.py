@@ -214,3 +214,18 @@ def test_hstpa_is_split_by_section_with_plain_law_names():
     assert "NYC Rent Stabilization Law" in titles["part-i-s-2"]
     hits = tools.search_sources("rent controlled landlord take apartment for family", source_id="hstpa-2019")
     assert hits["results"][0]["section_id"] in {"part-i-s-1", "part-i-s-4"}
+
+
+@pytest.mark.parametrize("borough, size, income", QUERIES)
+def test_income_gap_matches_the_answer_key(world, borough, size, income):
+    """Lotteries Housing Connect's search would show but where no unit fits (RESP-5)."""
+    got = [l["lottery_id"] for l in tools.search_lotteries(borough, size, income)["income_gap"]]
+    expected = lottery_answers.income_gap(lottery_answers.load_fixture("2026-11-10"), borough, size, income)
+    assert got == expected
+
+
+def test_income_gap_reports_the_nearest_ranges(world):
+    gap = {l["lottery_id"]: l for l in tools.search_lotteries("Brooklyn", 2, 65000)["income_gap"]}
+    assert set(gap) == {7626, 7690}
+    ranges = [(r["income_min"], r["income_max"]) for r in gap[7690]["ranges"]]
+    assert (37989.0, 54280.0) in ranges and (75703.0, 108560.0) in ranges and "no unit" in gap[7690]["note"]

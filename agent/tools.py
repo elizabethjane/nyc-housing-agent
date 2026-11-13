@@ -88,18 +88,20 @@ def search_lotteries(borough: str, household_size: int, annual_income: float) ->
     with db.connection() as conn:
         if db.get_meta(conn, "data_as_of") is None:
             return _err("unavailable", "lottery data has not been synced yet")
-        listed, below, not_eligible = [], [], 0
+        listed, below, gap, not_eligible = [], [], [], 0
         for lot in eligibility.open_lotteries(conn, on, b):
             result = eligibility.assess(conn, lot, household_size, annual_income)
             if result["eligibility"] in ("eligible", "unknown"):
                 listed.append({**_summary(lot, on), **result})
             elif result["eligibility"] == "below_minimum":
                 below.append({**_summary(lot, on), **result})
+            elif result["eligibility"] == "income_gap":
+                gap.append({**_summary(lot, on), **result})
             else:
                 not_eligible += 1
         return {"ok": True, **_data_status(conn), "borough": b, "household_size": household_size,
                 "annual_income": annual_income, "count": len(listed), "lotteries": listed,
-                "below_minimum": below, "open_but_not_eligible": not_eligible}
+                "below_minimum": below, "income_gap": gap, "open_but_not_eligible": not_eligible}
 
 
 def get_lottery(lottery_id: int) -> dict:

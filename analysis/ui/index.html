@@ -355,8 +355,9 @@ function renderTrace() {
   const metaBits = [`${m.turns} turn${m.turns === 1 ? "" : "s"}`, `${m.tool_calls} tool call${m.tool_calls === 1 ? "" : "s"}`, `${m.model_calls} model call${m.model_calls === 1 ? "" : "s"}`,
     `$${(m.cost_usd || 0).toFixed(3)}`, m.seconds != null ? `${m.seconds} s` : null, m.model, m.prompt_version ? `prompt ${m.prompt_version}` : null,
     m.at ? m.at.slice(0, 16).replace("T", " ") : null].filter(Boolean);
+  const asOf = m.as_of ? `<span class="pill" title="The scenario's clock and lottery data are frozen at this date. Compare with Housing Connect as of this day, not today.">data as of ${esc(new Date(m.as_of + "T12:00:00").toLocaleDateString([], {month: "short", day: "numeric", year: "numeric"}))}</span>` : "";
   let h = `<div class="head"><h1><span class="id">${esc(t.id)}</span>${t.status ? `<span class="st ${t.status}">${esc(t.status.replace("_", " "))}</span>` : ""}
-      ${t.group ? `<span class="pill">${esc(t.group)}</span>` : ""}</h1>
+      ${t.group ? `<span class="pill">${esc(t.group)}</span>` : ""}${asOf}</h1>
     ${tuple ? `<div class="tuple">${tuple}</div>` : ""}
     <div class="meta">${metaBits.map((b) => `<span>${esc(b)}</span>`).join("")}${(t.flags || []).map((f) => `<span class="flag">${esc(f)}</span>`).join("")}</div>
     <div class="verdict" id="verdict"></div></div>
