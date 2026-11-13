@@ -58,9 +58,10 @@ def _lottery_ids_in_order(text: str) -> list[int]:
 # otherwise out of reach. Checked on the link's own line and on the heading of its section.
 _NOT_A_MATCH = re.compile(
     r"below (the |its |their |your )?(income )?minimum|under (the |its |their )?minimum|minimum income|"
-    r"no unit|none of (its|their|the) units|not a match|aren't (a )?match|isn't a match|"
+    r"no unit|none of (its|their|the) (\w+ )?(units|ranges)|not a match|aren't (a )?match|isn't a match|"
     r"(don't|do not|doesn't|does not|won't|wouldn't) (qualify|fit|match)|not eligible|ineligible|"
-    r"falls? between|between (its|their|the) (income )?ranges|income gap|search (may|might|will) (also )?(show|list)|"
+    r"falls? between|between (its|their|the) (income )?ranges|income gap|"
+    r"(may|might|could|will) (also )?(show|list|appear|come)|"
     r"above (the |its |their )?(income )?(maximum|max)",
     re.I)
 _SECTION_HEAD = re.compile(r"^\s*(#{1,6}\s|\*\*[^*]+\*\*\s*:?\s*$|\*\*[^*]+:\*\*|[^\n]{0,120}:\s*$)")

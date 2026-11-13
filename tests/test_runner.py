@@ -131,6 +131,9 @@ D_ = "https://housingconnect.nyc.gov/PublicWeb/details/"
     (f"Two fit: [A]({D_}1) and [B]({D_}2). [C]({D_}3) closes today but has a $65,418 minimum income.", [1, 2]),
     # income-gap wording
     (f"Matches: [A]({D_}1)\n\nHousing Connect's search may also show [G]({D_}4) and [H]({D_}5), but no unit there fits.", [1]),
+    # wording from a real reply (pilot-2, pilot-002)
+    (f"- [A]({D_}1), Ends Nov 16.\n\n**What to check:**\n- **[904 East 98th Street]({D_}4)** may show up in Housing "
+     f"Connect's search, but none of its income ranges include $70,000.", [1]),
     # a match whose name contains a trigger word still counts
     (f"- [No Unit Left Behind Apartments]({D_}6), closes Nov 20", [6]),
 ])
