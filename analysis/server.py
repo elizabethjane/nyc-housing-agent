@@ -82,7 +82,9 @@ def tool_summary(name: str, result: dict) -> str:
         return f"{len(result['text']):,} characters · {result.get('title') or result.get('url')}"
     if "lotteries" in result:
         below = len(result.get("below_minimum") or [])
-        return (f"{len(result['lotteries'])} lotteries" + (f", {below} below income minimum" if below else "")
+        gap = len(result.get("income_gap") or [])
+        return (f"{len(result['lotteries'])} lotteries" + (f", {gap} in an income gap" if gap else "")
+                + (f", {below} below income minimum" if below else "")
                 + f" · {result.get('source_mode', '?')} data as of {str(result.get('data_as_of', '?'))[:10]}")
     if "matches" in result:
         return f"{len(result['matches'])} matches: " + ", ".join(m.get("name", "?") for m in result["matches"][:3])
