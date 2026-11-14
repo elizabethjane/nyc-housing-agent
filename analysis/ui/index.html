@@ -39,7 +39,14 @@ button,select,input,textarea{font:inherit;color:inherit}
 a{color:var(--accent-ink)}
 code{font-family:var(--mono);font-size:12px}
 .top{display:flex;align-items:center;gap:20px;padding:8px 18px;background:var(--accent);color:#fff;height:46px}
-.top b{font-weight:600}
+.top b{font-weight:600;white-space:nowrap}
+@media (max-width:1100px){
+  #v-traces{grid-template-columns:240px 1fr}
+  .margin{width:210px}
+  .main{padding:16px 14px 80px}
+  .top{gap:12px}
+  .top b{display:none}
+}
 .tabs{display:flex;gap:4px}
 .tabs button{padding:4px 12px;border-radius:6px;font-size:13px;border:0;background:none;color:#fff;opacity:.75;cursor:pointer}
 .tabs button.on{background:rgba(255,255,255,.18);opacity:1}
@@ -75,7 +82,7 @@ code{font-family:var(--mono);font-size:12px}
 .main{overflow:auto;padding:20px 24px 80px;position:relative}
 .empty{color:var(--muted);padding:40px}
 .cols{display:flex;gap:20px;max-width:1060px}
-.body{flex:1;min-width:0;max-width:760px}
+.body{flex:1;min-width:360px;max-width:760px}
 .margin{width:250px;position:relative;flex:none}
 .head{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin-bottom:24px}
 .head h1{margin:0 0 4px;font-size:17px;display:flex;gap:10px;align-items:center}
@@ -116,8 +123,8 @@ code{font-family:var(--mono);font-size:12px}
 .mnote.hover{box-shadow:0 0 0 2px var(--note-edge)}
 .mnote q{quotes:none;display:block;color:var(--muted);font-size:11.5px;margin-bottom:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .mnote .by{font-size:10.5px;color:var(--muted);margin-top:4px;display:flex;justify-content:space-between;gap:6px}
-.mnote .acts{visibility:hidden;display:flex;gap:8px}
-.mnote:hover .acts{visibility:visible}
+.mnote .acts{display:flex;gap:8px;opacity:.6}
+.mnote:hover .acts{opacity:1}
 .mnote .acts button{border:0;background:none;padding:0;color:var(--accent-ink);cursor:pointer;font-size:10.5px}
 .mnote.s{background:var(--sugg-bg);border-color:var(--sugg-hl);border-left-color:var(--sugg)}
 .mnote textarea{width:100%;font-size:12.5px;border:1px solid var(--line);border-radius:5px;padding:4px;background:var(--panel)}
@@ -497,7 +504,13 @@ $("#main").addEventListener("click", async (e) => {
   const btn = e.target.closest("[data-act]"); if (!btn) return;
   const note = btn.closest(".mnote"), id = note.dataset.id;
   try {
-    if (btn.dataset.act === "del") { if (confirm("Delete this note?")) { await api("/api/annotations", {op: "delete", id}); await afterChange(); } }
+    // Two clicks instead of window.confirm, which the app's browser pane blocks.
+    if (btn.dataset.act === "del") {
+      btn.closest(".acts").innerHTML = `<button data-act="del-yes" style="color:var(--fail)">yes, delete</button><button data-act="del-no">keep</button>`;
+      note.querySelector(".acts").style.visibility = "visible";
+    }
+    else if (btn.dataset.act === "del-no") { renderMargin(); }
+    else if (btn.dataset.act === "del-yes") { await api("/api/annotations", {op: "delete", id}); await afterChange(); }
     else if (btn.dataset.act === "edit") {
       const a = S.review.annotations.find((x) => x.id === id);
       note.querySelector(".nt").innerHTML = `<textarea rows="3">${esc(a.note)}</textarea><div class="small">Enter to save · Esc to cancel</div>`;
