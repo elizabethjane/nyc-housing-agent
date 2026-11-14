@@ -198,8 +198,9 @@ def chat(body: ChatIn, request: Request) -> JSONResponse:
     session.ip = _client_ip(request)
     if TURNSTILE_ON and session.id not in _verified_sessions:
         if not _turnstile_ok(body.turnstile_token, session.ip):
-            response = JSONResponse({"error": "bot_check", "reply": "Please complete the check above, then send "
-                                     "your message again."}, status_code=403)
+            response = JSONResponse({"error": "bot_check", "new_conversation": is_new,
+                                     "reply": "Please complete the check above, then send your message again."},
+                                    status_code=403)
             if is_new:
                 _set_cookie(response, request, session)
             return response
@@ -220,8 +221,10 @@ def chat(body: ChatIn, request: Request) -> JSONResponse:
     finally:
         lock.release()
     status = 429 if result.blocked == "rate_limited" else 200
-    response = JSONResponse({"turn_id": turn_id, "reply": result.reply, "blocked": result.blocked},
-                            status_code=status)
+    # new_conversation lets the page notice a server restart: sessions live in memory, so a
+    # restart mid-conversation starts a new one without the earlier messages.
+    response = JSONResponse({"turn_id": turn_id, "reply": result.reply, "blocked": result.blocked,
+                             "new_conversation": is_new}, status_code=status)
     if is_new:
         _set_cookie(response, request, session)
     return response

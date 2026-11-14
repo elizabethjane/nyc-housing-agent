@@ -9,7 +9,15 @@ services:
     buildCommand: pip install uv && uv sync --frozen --no-dev
     startCommand: uv run --no-dev uvicorn server.app:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /health
-    autoDeploy: true         # redeploy on every push to the deployed branch
+    autoDeploy: true         # redeploy on pushes to the deployed branch...
+    buildFilter:             # ...but not for changes the site doesn't use. A redeploy restarts the
+      ignoredPaths:          # server, which ends open conversations (sessions live in memory).
+        - analysis/**
+        - scenarios/**
+        - tests/**
+        - scripts/**
+        - README.md            # root docs only: saved sources under data/ are Markdown too
+        - SPEC.md
     disk:
       name: data
       mountPath: /var/data

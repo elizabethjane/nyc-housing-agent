@@ -139,6 +139,31 @@
     return node;
   }
 
+  let turnsSent = 0;  // replies received in this conversation, to notice a server restart
+
+  // Sends one message. A bot_check refusal after this page already passed the check means the
+  // server restarted and forgot the session, so get a fresh token and try once more.
+  async function post(text, retried) {
+    const token = botNeeded && !botVerified ? await waitForToken(15000) : null;
+    const res = await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: text, turnstile_token: token }) });
+    const data = await res.json().catch(() => ({}));
+    if (data.error === "bot_check") {
+      botVerified = false;
+      setToken(null);
+      if (botWidget !== null && window.turnstile) window.turnstile.reset(botWidget);
+      if (!retried) {
+        // The refused attempt is where the server started the new conversation; keep that fact.
+        const again = await post(text, true);
+        again.data.new_conversation = Boolean(again.data.new_conversation || data.new_conversation);
+        return again;
+      }
+    } else if (res.ok && token) {
+      botVerified = true;  // the server remembers this conversation; no more checks
+    }
+    return { res, data };
+  }
+
   async function ask(text) {
     text = text.trim();
     if (!text || busy || text.length > MAX) return;
@@ -150,17 +175,13 @@
     const typing = addTyping();
     scrollToEnd();
     try {
-      const token = botNeeded && !botVerified ? await waitForToken(15000) : null;
-      const res = await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: text, turnstile_token: token }) });
-      const data = await res.json().catch(() => ({}));
-      if (data.error === "bot_check") {
-        setToken(null);
-        if (botWidget !== null && window.turnstile) window.turnstile.reset(botWidget);
-      } else if (res.ok && token) {
-        botVerified = true;  // the server remembers this conversation; no more checks
-      }
+      const { res, data } = await post(text, false);
       typing.remove();
+      if (res.ok && data.new_conversation && turnsSent > 0) {
+        addAgent("The site restarted, so I lost the earlier part of this conversation and only saw your last " +
+          "message. If my answer is missing context, please include the details again.", null, true);
+      }
+      if (res.ok) turnsSent += 1;
       addAgent(data.reply || "Sorry, something went wrong. Please try again.", data.turn_id,
         Boolean(data.blocked) || !res.ok);
     } catch (_) {
@@ -199,6 +220,7 @@
       if (botWidget !== null && window.turnstile) window.turnstile.reset(botWidget);
     }
     list.innerHTML = "";
+    turnsSent = 0;
     document.body.classList.add("empty");
     input.value = "";
     updateComposer();

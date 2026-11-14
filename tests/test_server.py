@@ -132,3 +132,12 @@ def test_admin_is_off_without_a_long_token(client, monkeypatch):
 
     monkeypatch.setattr(app_module, "ADMIN_TOKEN", "short")
     assert client.get("/admin/traces/index", headers={"Authorization": "Bearer short"}).status_code == 404
+
+
+def test_chat_reports_when_it_starts_a_new_conversation(client):
+    """The page uses this to notice a server restart mid-conversation (sessions live in memory)."""
+    first = client.post("/api/chat", json={"message": "hi"})
+    assert first.json()["new_conversation"] is True
+    assert client.post("/api/chat", json={"message": "again"}).json()["new_conversation"] is False
+    client.cookies.clear()  # what a restart looks like to the server: an unknown session
+    assert client.post("/api/chat", json={"message": "after restart"}).json()["new_conversation"] is True
