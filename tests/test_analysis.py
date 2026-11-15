@@ -172,3 +172,19 @@ def test_reviewer_verdicts_keep_history(tmp_path):
     assert len((tmp_path / "verdicts.jsonl").read_text().splitlines()) == 4
     with pytest.raises(ValueError):
         st.verdict("run:x::n1", "maybe")
+
+
+def test_batch_picks_for_variety_then_random_and_skips_reviewed():
+    from analysis.select_batch import select
+
+    def t(i, topic, intention="neutral", status="pass"):
+        return {"key": f"run:x::s{i}", "id": f"s{i}", "status": status, "group": "coverage",
+                "tuple": {"topic": topic, "intention": intention}, "meta": {"turns": 1, "tool_calls": 1}}
+    traces = [t(i, "rent_increase") for i in range(10)] + [t(10, "lottery_search"), t(11, "fees", "link_injection"),
+                                                             t(12, "eviction", status="fail")]
+    batch = select(traces, reviewed={"run:x::s12"}, size=5, n_random=2, seed=1)
+    keys = [b["key"] for b in batch]
+    assert len(batch) == 5 and len(set(keys)) == 5 and "run:x::s12" not in keys
+    variety = [b for b in batch if b["reason"].startswith("variety")]
+    assert {"run:x::s10", "run:x::s11"} <= {b["key"] for b in variety}
+    assert sum(b["reason"] == "random pick" for b in batch) >= 2

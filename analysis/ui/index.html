@@ -239,10 +239,11 @@ function md(src) {
 // --- App state ----------------------------------------------------------------------
 const S = {
   sources: [], source: null, traces: [], current: null, review: {annotations: [], modes: [], suggestions: [], labels: []},
-  version: "", view: "traces", filters: Object.assign({status: "all", group: "all", unreviewed: false, topic: "", intention: "", q: "", verdict: ""}, store.get("tv-filters", {})),
+  version: "", view: "traces", filters: Object.assign({status: "all", group: "all", batch: false, unreviewed: false, topic: "", intention: "", q: "", verdict: ""}, store.get("tv-filters", {})),
 };
 const annotationsFor = (key) => S.review.annotations.filter((a) => a.trace_key === key);
 const suggestionsFor = (key) => S.review.suggestions.filter((s) => s.trace_key === key);
+const batchFor = (key) => { const b = S.review.batch; return b && b.samples.find((x) => x.key === key) || null; };
 const verdictFor = (key) => (S.review.verdicts || []).find((v) => v.trace_key === key)?.value || null;
 const reviewed = (key) => annotationsFor(key).length > 0 || !!verdictFor(key) || S.review.labels.some((l) => l.trace_key === key);
 // The grader's pass/fail against yours; "needs review" and "error" never count as a disagreement.
@@ -296,6 +297,7 @@ function renderFilters() {
   $("#filters").innerHTML =
     statuses.map(([v, l]) => `<span class="chip ${f.status === v ? "on" : ""}" data-f="status" data-v="${v}">${l}${v === "all" ? "" : " " + count(v)}</span>`).join("") +
     (isRun ? ["coverage", "challenge"].map((g) => `<span class="chip ${f.group === g ? "on" : ""}" data-f="group" data-v="${g}">${g[0].toUpperCase() + g.slice(1)}</span>`).join("") : "") +
+    (S.review.batch && S.review.batch.source === S.source ? `<span class="chip ${f.batch ? "on" : ""}" data-f="batch" title="${esc(S.review.batch.method)}">Review batch ${S.review.batch.samples.length}</span>` : "") +
     `<span class="chip ${f.unreviewed ? "on" : ""}" data-f="unreviewed">Not reviewed</span>` +
     (isRun ? ["topic", "intention"].map((d) => `<select data-sel="${d}"><option value="">${d} (all)</option>${values(d).map((v) => `<option ${f[d] === v ? "selected" : ""}>${esc(v)}</option>`).join("")}</select>`).join("") : "") +
     `<select data-sel="verdict">${[["", "your verdict (all)"], ["pass", "you: pass"], ["fail", "you: fail"], ["none", "you: not judged"], ...(isRun ? [["disagree", "you disagree with grader"]] : [])]
@@ -306,6 +308,7 @@ $("#filters").addEventListener("click", (e) => {
   const c = e.target.closest(".chip"); if (!c) return;
   const f = S.filters;
   if (c.dataset.f === "unreviewed") f.unreviewed = !f.unreviewed;
+  else if (c.dataset.f === "batch") f.batch = !f.batch;
   else if (c.dataset.f === "group") f.group = f.group === c.dataset.v ? "all" : c.dataset.v;
   else f.status = c.dataset.v;
   store.set("tv-filters", f); renderFilters(); renderList();
@@ -316,7 +319,7 @@ $("#filters").addEventListener("input", (e) => { if ("q" in e.target.dataset) { 
 function visible() {
   const f = S.filters, q = f.q.trim().toLowerCase();
   return S.traces.filter((t) => (f.status === "all" || t.status === f.status) && (f.group === "all" || !t.group || t.group === f.group)
-    && (!f.unreviewed || !reviewed(t.key)) && (!f.topic || t.tuple.topic === f.topic) && (!f.intention || t.tuple.intention === f.intention)
+    && (!f.unreviewed || !reviewed(t.key)) && (!f.batch || batchFor(t.key)) && (!f.topic || t.tuple.topic === f.topic) && (!f.intention || t.tuple.intention === f.intention)
     && (!f.verdict || (f.verdict === "none" ? !verdictFor(t.key) : f.verdict === "disagree" ? disagrees(t) : verdictFor(t.key) === f.verdict))
     && (!q || t.title.toLowerCase().includes(q) || t.id.toLowerCase().includes(q)));
 }
@@ -367,6 +370,7 @@ function renderTrace() {
       ${t.group ? `<span class="pill">${esc(t.group)}</span>` : ""}${asOf}</h1>
     ${tuple ? `<div class="tuple">${tuple}</div>` : ""}
     <div class="meta">${metaBits.map((b) => `<span>${esc(b)}</span>`).join("")}${(t.flags || []).map((f) => `<span class="flag">${esc(f)}</span>`).join("")}</div>
+    ${batchFor(t.key) ? `<div class="small" style="margin-top:6px">In the review batch: ${esc(batchFor(t.key).reason)}</div>` : ""}
     <div class="verdict" id="verdict"></div></div>
     <details class="sys" id="sys"><summary>System prompt (the same in every trace with this version) · show</summary><pre>Loading…</pre></details>`;
   t.turns.forEach((turn, i) => {

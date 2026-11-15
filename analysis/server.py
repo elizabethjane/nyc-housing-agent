@@ -15,6 +15,7 @@ Review state lives in analysis/state/ (ignored by git, since notes quote traces)
   annotations.json      the human's notes (written only by the viewer)
   patterns.json         failure modes grouped from the notes (written by Claude, edited by the human)
   suggestions.json      suggested instances of a mode, awaiting accept or dismiss
+  samples.json          the current review batch (analysis/select_batch.py)
   labels/<mode>.jsonl   present/absent decisions, append-only; the last line per trace wins
   verdicts.jsonl        the reviewer's own pass/fail per trace, append-only; the last line per trace wins
 """
@@ -225,7 +226,9 @@ class State:
                 "modes": self.read("patterns.json", "modes"),
                 "suggestions": [s for s in self.read("suggestions.json", "suggestions")
                                 if s.get("status", "pending") == "pending"],
-                "labels": self.labels(), "verdicts": self.verdicts()}
+                "labels": self.labels(), "verdicts": self.verdicts(),
+                "batch": json.loads(self._path("samples.json").read_text()) if self._path("samples.json").exists()
+                else None}
 
     def verdicts(self) -> list[dict]:
         """The reviewer's own pass/fail per trace: the last decision written."""
@@ -245,7 +248,8 @@ class State:
         return row
 
     def version(self) -> str:
-        files = [self._path(n) for n in ("annotations.json", "patterns.json", "suggestions.json", "verdicts.jsonl")]
+        files = [self._path(n) for n in ("annotations.json", "patterns.json", "suggestions.json", "verdicts.jsonl",
+                                         "samples.json")]
         files += sorted((self.folder / "labels").glob("*.jsonl"))
         return ";".join(f"{f.name}:{f.stat().st_mtime_ns}" for f in files if f.exists())
 
