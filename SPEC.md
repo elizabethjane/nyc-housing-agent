@@ -311,6 +311,17 @@ Requirements that do not fit in the sections above, including tone and style gui
   lotteries may be missing.
 - **RESP-7.** List lotteries in order of end date, soonest first, so the user
   sees the ones closing soon at the top.
+- **RESP-8.** (Added 2026-11-15 from trace review: pilot-003, pilot-004.) When
+  a reply says an exception or justification could change the answer, it
+  names the specific conditions the approved sources give, with a link, rather
+  than only saying one may exist. For example: increases above the
+  rent-stabilized guideline for major capital improvements or individual
+  apartment improvements (`hstpa-2019` Part K); for a Good Cause increase above
+  the local rent standard, what a court considers when the landlord tries to
+  show it is reasonable (`nys-rpp-a6a` § 216: fuel, utility, insurance, and
+  maintenance costs; property taxes and recent increases in them; significant
+  repairs not caused by the landlord's failure to maintain the building). It
+  does not say whether the conditions apply to the user (REF-1).
 
 ## 8. Public deployment
 

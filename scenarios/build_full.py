@@ -162,7 +162,7 @@ def rgb(start, years, asked=None, turn=None):
                     f"definitely illegal."),
         "checks": [{"check": "reply_states_percent", "percent": pct, **t},
                    {"check": "reply_links", "urls": [url], **t},
-                   {"check": "reply_not_contains", "text": "illegal", **t}],
+                   {"check": "reply_not_calls_illegal", **t}],
         "source": {"type": "facts_yaml", "reference": f"rgb_apartment_orders[order={order['order']}].{term}_lease_increase_percent"},
     }
 

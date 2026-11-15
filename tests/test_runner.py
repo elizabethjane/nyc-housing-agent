@@ -148,3 +148,11 @@ def test_gap_lotteries_must_be_named_and_not_listed():
     assert grade.check(c, ["Matches: none"], turns(""))[0] == "fail"
     bad = f"You match [A]({D_}1) and [G]({D_}4)."
     assert grade.check(c, [bad], turns(bad))[0] == "fail"
+
+
+@pytest.mark.parametrize("reply, status", [
+    ("The guideline is 0%, so 10% is above it, though it isn't automatically illegal.", "review"),
+    ("The guideline is 0% for this lease.", "pass"),
+])
+def test_illegal_wording_goes_to_a_person(reply, status):
+    assert grade.check({"check": "reply_not_calls_illegal"}, [reply], turns(reply))[0] == status

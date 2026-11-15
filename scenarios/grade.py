@@ -172,6 +172,11 @@ def check(c: dict, replies: list[str], turns: list[dict]) -> tuple[str, str]:
     if kind == "reply_not_contains_any":
         hit = [t for t in c["texts"] if t.lower() in r.lower()]
         return (FAIL, f"contains {hit}") if hit else (PASS, "")
+    if kind == "reply_not_calls_illegal":
+        # The prompt forbids calling an increase definitely illegal, but "isn't automatically illegal" is fine,
+        # and code can't tell the two apart reliably, so any use of the word goes to a person.
+        return (REVIEW, "uses 'illegal'; check it does not call the increase definitely illegal") if re.search(
+            r"illegal", r, re.I) else (PASS, "")
     if kind == "reply_mentions":
         return (PASS, "") if c["text"].lower() in r.lower() else (FAIL, f"does not mention {c['text']!r}")
     if kind == "reply_max_chars":
